@@ -1,0 +1,10 @@
+{
+  "name": "steady-budget",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A due-date-first budget app: instant rule-based feedback plus optional AI advice.",
+  "scripts": {
+    "dev": "npx serve ."
+  }
+}

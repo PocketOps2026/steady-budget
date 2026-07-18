@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Steady — a due-date-first budget</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">●</span>
+    <span class="brand-name">Steady</span>
+  </div>
+  <div class="topbar-actions">
+    <button id="exportBtn" class="ghost-btn" title="Download a backup of your data">Export</button>
+    <label class="ghost-btn" for="importFile" title="Load a backup file">Import
+      <input type="file" id="importFile" accept="application/json" hidden />
+    </label>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero card">
+    <p class="hero-eyebrow" id="todayLabel">Today</p>
+    <div class="hero-grid">
+      <div class="hero-stat">
+        <p class="hero-stat-label">Monthly income</p>
+        <p class="hero-stat-value" id="statIncome">$0</p>
+      </div>
+      <div class="hero-stat">
+        <p class="hero-stat-label">Monthly bills</p>
+        <p class="hero-stat-value" id="statBills">$0</p>
+      </div>
+      <div class="hero-stat hero-stat-main">
+        <p class="hero-stat-label">Left over</p>
+        <p class="hero-stat-value" id="statLeftover">$0</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <h2>What's due</h2>
+      <p class="section-sub">Sorted by soonest, not by category. This is the whole point of Steady.</p>
+    </div>
+    <div id="dueList" class="due-list"></div>
+    <p id="dueEmpty" class="empty-note" hidden>Add a bill below to see your due-date timeline.</p>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <h2>Feedback</h2>
+      <p class="section-sub">Instant, rule-based — no waiting.</p>
+    </div>
+    <div id="feedbackList" class="feedback-list"></div>
+
+    <div class="ai-block">
+      <button id="aiBtn" class="primary-btn">Get personalized advice</button>
+      <p id="aiStatus" class="ai-status"></p>
+      <p id="aiText" class="ai-text"></p>
+    </div>
+  </section>
+
+  <section class="card two-col">
+    <div class="col">
+      <div class="section-head">
+        <h2>Income</h2>
+      </div>
+      <div id="incomeList" class="entry-list"></div>
+      <form id="incomeForm" class="entry-form">
+        <input type="text" id="incName" placeholder="Source (e.g. Adam's paycheck)" required />
+        <input type="number" id="incAmount" placeholder="Amount" min="0" step="0.01" required />
+        <select id="incFrequency">
+          <option value="monthly">Monthly</option>
+          <option value="semimonthly">Twice a month</option>
+          <option value="biweekly">Every 2 weeks</option>
+          <option value="weekly">Weekly</option>
+          <option value="annual">Annually</option>
+        </select>
+        <button type="submit" class="add-btn">Add</button>
+      </form>
+    </div>
+
+    <div class="col">
+      <div class="section-head">
+        <h2>Bills &amp; expenses</h2>
+      </div>
+      <div id="billsList" class="entry-list"></div>
+      <form id="billForm" class="entry-form">
+        <input type="text" id="billName" placeholder="Bill (e.g. Rent)" required />
+        <input type="number" id="billAmount" placeholder="Amount" min="0" step="0.01" required />
+        <input type="number" id="billDueDay" placeholder="Due day (1-31)" min="1" max="31" required />
+        <select id="billCategory">
+          <option>Housing</option>
+          <option>Utilities</option>
+          <option>Food</option>
+          <option>Transportation</option>
+          <option>Insurance</option>
+          <option>Debt</option>
+          <option>Subscriptions</option>
+          <option>Other</option>
+        </select>
+        <label class="checkbox-label">
+          <input type="checkbox" id="billIsDebt" />
+          Paying this off (loan / credit card)
+        </label>
+        <input type="number" id="billBalance" placeholder="Remaining balance" min="0" step="0.01" hidden />
+        <button type="submit" class="add-btn">Add</button>
+      </form>
+    </div>
+  </section>
+
+  <section class="card" id="payoffCard" hidden>
+    <div class="section-head">
+      <h2>Paying off</h2>
+      <p class="section-sub">Watch these shrink to zero.</p>
+    </div>
+    <div id="payoffList" class="payoff-list"></div>
+  </section>
+
+  <section class="card" id="celebrateCard" hidden>
+    <div class="section-head">
+      <h2>🎉 Paid off</h2>
+    </div>
+    <div id="paidOffList" class="paidoff-list"></div>
+  </section>
+
+  <section class="card">
+    <div class="section-head">
+      <h2>Where it's going</h2>
+    </div>
+    <div id="categoryBars" class="category-bars"></div>
+    <p id="categoryEmpty" class="empty-note" hidden>Category breakdown will show up once you add bills.</p>
+  </section>
+
+</main>
+
+<footer>
+  <p>Your data stays in this browser (localStorage). Use Export/Import to move it between devices or back it up.</p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
