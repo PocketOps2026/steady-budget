@@ -1,15 +1,35 @@
-# Steady — a due-date-first budget
+# Harbor — a due-date-first budget
 
-Most budget apps make you review a log of past transactions. Steady flips that:
-it's built around what's coming up. Add your income and bills once, and it
-shows a due-date timeline, instant plain-language feedback, and optional
-AI-generated advice — plus a "paying off" tracker with a small celebration
-when a debt finally hits zero.
+*(This project's folder and GitHub repo are still named `steady-budget` — only the app's name and look changed. Renaming the repo itself is optional; see the bottom of this file if you want to do that too.)*
+
+Most budget apps make you review a log of past transactions. Harbor flips
+that: it's built around what's coming up. Add your income and bills once,
+and it shows a due-date timeline, a real calendar laid out month by month
+(including weekly and biweekly bills like child support), instant
+plain-language feedback, and optional AI-generated advice — plus a "paying
+off" tracker with a small celebration when a debt finally hits zero.
 
 Everything runs client-side and saves to your browser's local storage. There's
 no account, no bank linking, and no database. The only server-side piece is a
 single optional API route that adds AI-generated advice on top of the built-in
 rule-based feedback.
+
+## What's new in this version
+
+- **New name and look** — renamed from Steady to Harbor, with a warm color
+  palette, an anchor logo, and small animations (numbers count up, progress
+  bars fill smoothly, cards ease in).
+- **Weekly and biweekly bills** — bills aren't limited to "once a month on day
+  X" anymore. Add a bill as Weekly (e.g. child support every Friday) or Every
+  2 weeks (with a start date), and it recurs correctly.
+- **Month-by-month calendar** — a real calendar grid under "Month by month."
+  Use the ‹ › arrows to look up to a year ahead. Each day shows every bill due
+  that day; click a bill on the calendar to mark it paid. The summary above
+  the calendar totals exactly what's due that specific month (so a month with
+  5 Fridays instead of 4 shows correctly) alongside income and leftover.
+
+Your existing data is untouched — it's keyed the same way in local storage,
+so nothing was lost in this update.
 
 ## Run it locally
 
@@ -21,29 +41,19 @@ npx serve .
 
 Then open the URL it prints (something like `http://localhost:3000`).
 
-## Put it on GitHub
+## Push the update to GitHub
 
 ```
 cd steady-budget
-git init
 git add .
-git commit -m "Initial commit"
-git branch -M main
-git remote add origin https://github.com/<your-username>/steady-budget.git
-git push -u origin main
+git commit -m "Redesign: rename to Harbor, add calendar and weekly/biweekly bills"
+git push
 ```
 
-(Create the empty `steady-budget` repo on GitHub first, without a README, so
-there's no merge conflict on push.)
+(No need to re-run `git init` or `git remote add` — that's already set up from
+the first push.)
 
-## Deploy on Vercel
-
-1. Go to vercel.com and "Add New… → Project".
-2. Import the `steady-budget` GitHub repo.
-3. Framework preset: "Other" (no build command needed).
-4. Deploy.
-
-That's it for the core app. Every push to `main` will auto-deploy.
+Vercel will auto-deploy the update within about a minute of the push.
 
 ## Turning on AI advice (optional)
 
@@ -76,6 +86,13 @@ To enable it:
   edit that list to add/remove categories.
 - Colors and spacing live in `style.css` as CSS variables at the top of the
   file (`--good`, `--warn`, `--bad`, `--accent`, etc.).
-- All the budgeting logic (due-date math, feedback rules, payoff tracking) is
-  in `app.js`, and is intentionally simple/readable if you want to tweak the
-  rules yourself.
+- All the budgeting logic (due-date math, recurrence, feedback rules, payoff
+  tracking) is in `app.js`, and is intentionally simple/readable if you want
+  to tweak the rules yourself.
+
+## Renaming the actual GitHub repo (optional)
+
+If you'd like the repo/URL to say "harbor" instead of "steady-budget" too:
+GitHub → your repo → Settings → repository name → rename. Vercel picks up
+the rename automatically on the next push; your live URL may change unless
+you set a custom domain.
