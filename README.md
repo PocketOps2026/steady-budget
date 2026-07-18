@@ -5,14 +5,13 @@
 Most budget apps make you review a log of past transactions. Harbor flips
 that: it's built around what's coming up. Add your income and bills once,
 and it shows a due-date timeline, a real calendar laid out month by month
-(including weekly and biweekly bills like child support), instant
-plain-language feedback, and optional AI-generated advice — plus a "paying
-off" tracker with a small celebration when a debt finally hits zero.
+(including weekly and biweekly bills like child support), and instant
+plain-language feedback — plus a "paying off" tracker with a small
+celebration when a debt finally hits zero.
 
 Everything runs client-side and saves to your browser's local storage. There's
-no account, no bank linking, and no database. The only server-side piece is a
-single optional API route that adds AI-generated advice on top of the built-in
-rule-based feedback.
+no account, no bank linking, and no database, and no AI calls — all the
+feedback is rule-based and instant.
 
 ## What's new in this version
 
@@ -55,24 +54,16 @@ the first push.)
 
 Vercel will auto-deploy the update within about a minute of the push.
 
-## Turning on AI advice (optional)
-
-The "Get personalized advice" button calls `/api/advice`, a Vercel serverless
-function. Without an API key it gracefully says the feature isn't set up yet
-and the rest of the app works fine.
-
-To enable it:
-
-1. Get an API key from [console.anthropic.com](https://console.anthropic.com).
-2. In your Vercel project: Settings → Environment Variables → add
-   `ANTHROPIC_API_KEY` with that key.
-3. Redeploy (Vercel → Deployments → ⋯ → Redeploy).
-
 ## Notes on data
 
-- Data lives in `localStorage`, per browser. If you and your wife use
-  different devices, use the **Export** button to download a backup JSON and
-  **Import** it on the other device to keep them in sync.
+- Data lives in `localStorage`, per browser/device — there's no shared
+  account, so opening the site on a second device starts blank.
+- To keep two people in sync: whoever last updated the budget clicks
+  **Export** to download a backup JSON, sends it over (text, email, AirDrop,
+  whatever's easiest), and the other person clicks **Import** on their
+  device to load it in. It's manual, but there's no risk of two people
+  editing different copies without knowing it, as long as you get in the
+  habit of exporting after you make changes.
 - Marking a "paying off" bill as paid each cycle automatically reduces its
   balance by the payment amount. You can also manually correct a balance
   (e.g. after an extra payment) from the "Paying off" section.

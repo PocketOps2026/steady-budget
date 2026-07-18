@@ -475,6 +475,44 @@ function buildFeedback(income, bills, leftover, today) {
     }
   }
 
+  // Cash coming due in the week after the immediate 3-day window —
+  // gives a heads-up before things get urgent enough to turn red/yellow above.
+  const weekAhead = activeBills()
+    .map(b => {
+      const due = nextDueDate(b, today);
+      const key = dueDateKey(due);
+      return { b, days: daysUntil(due, today), paid: b.paidForCycle === key };
+    })
+    .filter(x => !x.paid && x.days > 3 && x.days <= 7);
+  if (weekAhead.length >= 2) {
+    const sum = weekAhead.reduce((s, x) => s + x.b.amount, 0);
+    items.push({
+      level: "warn",
+      text: `${weekAhead.length} more bills totaling ${fmtMoney(sum)} land in the 4-7 days after that. Worth setting the cash aside now rather than later.`,
+    });
+  }
+
+  // Payoff timeline for debts that aren't already flagged as "almost done."
+  const payoffEstimates = activeBills().filter(b => b.isDebt && b.balance > b.amount);
+  for (const b of payoffEstimates) {
+    const months = Math.ceil(b.balance / b.amount);
+    if (months <= 24) {
+      items.push({
+        level: "good",
+        text: `At ${fmtMoney(b.amount)} per payment, ${b.name} will be paid off in about ${months} more ${months === 1 ? "payment" : "payments"} — ${fmtMoney(b.balance)} left to go.`,
+      });
+    }
+  }
+
+  // Savings nudge when there's comfortable room and nothing urgent flagged.
+  if (income > 0 && leftover > income * 0.15) {
+    const suggestion = Math.round(leftover * 0.2);
+    items.push({
+      level: "good",
+      text: `You've got solid breathing room this month. If you don't already have one, setting aside even ${fmtMoney(suggestion)} into an emergency fund helps absorb the next surprise expense.`,
+    });
+  }
+
   return items;
 }
 
@@ -795,64 +833,6 @@ document.getElementById("importFile").addEventListener("change", (e) => {
   };
   reader.readAsText(file);
   e.target.value = "";
-});
-
-// ---------- AI advice ----------
-
-document.getElementById("aiBtn").addEventListener("click", async () => {
-  const btn = document.getElementById("aiBtn");
-  const status = document.getElementById("aiStatus");
-  const textEl = document.getElementById("aiText");
-
-  const income = totalMonthlyIncome();
-  const bills = totalMonthlyBills();
-  const leftover = income - bills;
-  const today = new Date();
-
-  const upcoming = state.bills.map(b => {
-    const due = nextDueDate(b, today);
-    return { name: b.name, amount: b.amount, category: b.category, daysUntilDue: daysUntil(due, today) };
-  }).sort((a, b) => a.daysUntilDue - b.daysUntilDue);
-
-  const debts = activeBills().filter(b => b.isDebt).map(b => ({
-    name: b.name, balance: Math.round(b.balance), originalBalance: Math.round(b.originalBalance), monthlyPayment: b.amount,
-  }));
-  const paidOff = state.bills.filter(b => b.paidOff).map(b => b.name);
-
-  const summary = {
-    monthlyIncome: Math.round(income),
-    monthlyBills: Math.round(bills),
-    monthlyLeftover: Math.round(leftover),
-    categoryTotals: categoryTotals(),
-    upcomingBills: upcoming,
-    debtsBeingPaidOff: debts,
-    recentlyPaidOff: paidOff,
-  };
-
-  btn.disabled = true;
-  status.textContent = "Thinking...";
-  textEl.textContent = "";
-
-  try {
-    const res = await fetch("/api/advice", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ summary }),
-    });
-    const data = await res.json();
-    if (data.advice) {
-      textEl.textContent = data.advice;
-      status.textContent = "";
-    } else if (data.error === "not_configured") {
-      status.textContent = "AI advice isn't set up yet — add an ANTHROPIC_API_KEY environment variable in Vercel to enable it.";
-    } else {
-      status.textContent = "Couldn't get advice right now — try again in a moment.";
-    }
-  } catch (e) {
-    status.textContent = "Couldn't reach the advice service. (This feature needs the app deployed on Vercel with the API route.)";
-  } finally {
-    btn.disabled = false;
-  }
 });
 
 render();
