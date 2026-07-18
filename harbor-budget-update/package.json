@@ -1,0 +1,10 @@
+{
+  "name": "harbor-budget",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Harbor — a due-date-first budget app: instant rule-based feedback, a real calendar, and optional AI advice.",
+  "scripts": {
+    "dev": "npx serve ."
+  }
+}
