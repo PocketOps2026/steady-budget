@@ -47,8 +47,29 @@ function billFrequency(b) {
   return b.frequency || "monthly";
 }
 
+// Variable/commission income: computed from a history of logged monthly
+// amounts rather than a fixed amount + frequency.
+function computeVariableMonthly(inc) {
+  const hist = (inc.history || []).slice().sort((a, b) => a.month.localeCompare(b.month));
+  const recent = hist.slice(-6); // trailing up to 6 logged months
+  if (recent.length === 0) return { avg: 0, lowest: 0, count: 0, basisValue: 0 };
+  const amounts = recent.map(h => h.amount);
+  const avg = amounts.reduce((s, a) => s + a, 0) / amounts.length;
+  const lowest = Math.min(...amounts);
+  const basisValue = inc.basis === "average" ? avg : lowest;
+  return { avg, lowest, count: recent.length, basisValue };
+}
+
+function monthLabel(m) {
+  const [y, mo] = m.split("-").map(Number);
+  return new Date(y, mo - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
 function totalMonthlyIncome() {
-  return state.income.reduce((sum, i) => sum + monthlyAmount(i.amount, i.frequency), 0);
+  return state.income.reduce((sum, i) => {
+    if (i.type === "variable") return sum + computeVariableMonthly(i).basisValue;
+    return sum + monthlyAmount(i.amount, i.frequency);
+  }, 0);
 }
 
 function activeBills() {
@@ -513,6 +534,28 @@ function buildFeedback(income, bills, leftover, today) {
     });
   }
 
+  // Variable/commission income guidance.
+  for (const inc of state.income.filter(i => i.type === "variable")) {
+    const calc = computeVariableMonthly(inc);
+    if (calc.count === 0) continue;
+    if (calc.count < 3) {
+      items.push({
+        level: "warn",
+        text: `${inc.name} only has ${calc.count} ${calc.count === 1 ? "month" : "months"} logged so far — add a couple more as they come in so the average and low-month figures are more reliable.`,
+      });
+    } else if (inc.basis === "average" && calc.avg > calc.lowest * 1.1) {
+      items.push({
+        level: "warn",
+        text: `${inc.name} is budgeted off its average (${fmtMoney(calc.avg)}/mo), but its lowest recent month was ${fmtMoney(calc.lowest)}. A slow month could leave you short — switching to "lowest recent month" as the basis is the safer bet.`,
+      });
+    } else if ((inc.basis || "lowest") === "lowest" && calc.avg > calc.lowest * 1.15) {
+      items.push({
+        level: "good",
+        text: `${inc.name} is budgeted conservatively off its lowest month (${fmtMoney(calc.lowest)}/mo). On an average month you're actually bringing in about ${fmtMoney(calc.avg)} — the extra ${fmtMoney(calc.avg - calc.lowest)} is a good candidate for savings or extra debt payments.`,
+      });
+    }
+  }
+
   return items;
 }
 
@@ -558,6 +601,10 @@ function renderIncomeList() {
   const wrap = document.getElementById("incomeList");
   wrap.innerHTML = "";
   state.income.forEach((inc, idx) => {
+    if (inc.type === "variable") {
+      wrap.appendChild(renderVariableIncomeRow(inc, idx));
+      return;
+    }
     const row = document.createElement("div");
     row.className = "entry-row";
     row.innerHTML = `
@@ -577,6 +624,107 @@ function renderIncomeList() {
     row.appendChild(btn);
     wrap.appendChild(row);
   });
+}
+
+function renderVariableIncomeRow(inc, idx) {
+  const wrap = document.createElement("div");
+  wrap.className = "entry-row variable-row";
+
+  const calc = computeVariableMonthly(inc);
+  const basisLabel = inc.basis === "average" ? "average" : "lowest";
+
+  const main = document.createElement("div");
+  main.className = "variable-main";
+  const mainInfo = document.createElement("div");
+  mainInfo.className = "entry-row-main";
+  mainInfo.innerHTML = `
+    <span>${escapeHtml(inc.name)}<span class="badge-variable">Variable</span></span>
+    <span class="entry-row-sub">${calc.count === 0
+      ? "No months logged yet — add one below."
+      : `Using ${basisLabel} of last ${calc.count} ${calc.count === 1 ? "month" : "months"}: ${fmtMoney(calc.basisValue)}/mo`}</span>
+  `;
+  main.appendChild(mainInfo);
+  const removeBtn = document.createElement("button");
+  removeBtn.className = "remove-btn";
+  removeBtn.textContent = "Remove";
+  removeBtn.addEventListener("click", () => {
+    state.income.splice(idx, 1);
+    saveData();
+    render();
+  });
+  main.appendChild(removeBtn);
+  wrap.appendChild(main);
+
+  if (calc.count > 0) {
+    const controls = document.createElement("div");
+    controls.className = "variable-controls";
+    const basisSelect = document.createElement("select");
+    basisSelect.innerHTML = `
+      <option value="lowest">Budget off: lowest recent month (safer)</option>
+      <option value="average">Budget off: average</option>
+    `;
+    basisSelect.value = inc.basis === "average" ? "average" : "lowest";
+    basisSelect.addEventListener("change", () => {
+      inc.basis = basisSelect.value;
+      saveData();
+      render();
+    });
+    controls.appendChild(basisSelect);
+    wrap.appendChild(controls);
+  }
+
+  const hist = (inc.history || []).slice().sort((a, b) => b.month.localeCompare(a.month));
+  if (hist.length > 0) {
+    const histWrap = document.createElement("div");
+    histWrap.className = "variable-history";
+    for (const h of hist) {
+      const hrow = document.createElement("div");
+      hrow.className = "variable-hist-row";
+      const label = document.createElement("span");
+      label.textContent = monthLabel(h.month);
+      const amt = document.createElement("span");
+      amt.textContent = fmtMoney(h.amount);
+      const rm = document.createElement("button");
+      rm.className = "remove-btn";
+      rm.textContent = "×";
+      rm.title = "Remove this month";
+      rm.addEventListener("click", () => {
+        inc.history = inc.history.filter(x => x.id !== h.id);
+        saveData();
+        render();
+      });
+      hrow.appendChild(label);
+      hrow.appendChild(amt);
+      hrow.appendChild(rm);
+      histWrap.appendChild(hrow);
+    }
+    wrap.appendChild(histWrap);
+  }
+
+  const addForm = document.createElement("form");
+  addForm.className = "variable-add-form";
+  addForm.innerHTML = `
+    <input type="month" required />
+    <input type="number" min="0" step="0.01" placeholder="Amount" required />
+    <button type="submit" class="add-btn">Log month</button>
+  `;
+  addForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const monthInput = addForm.querySelector('input[type="month"]');
+    const amountInput = addForm.querySelector('input[type="number"]');
+    const month = monthInput.value;
+    const amount = parseFloat(amountInput.value);
+    if (!month || isNaN(amount)) return;
+    inc.history = inc.history || [];
+    const existing = inc.history.find(h => h.month === month);
+    if (existing) existing.amount = amount;
+    else inc.history.push({ id: crypto.randomUUID(), month, amount });
+    saveData();
+    render();
+  });
+  wrap.appendChild(addForm);
+
+  return wrap;
 }
 
 function billScheduleLabel(b) {
@@ -730,15 +878,55 @@ function escapeHtml(s) {
 
 // ---------- forms ----------
 
+const incTypeSelect = document.getElementById("incType");
+const incAmountInput = document.getElementById("incAmount");
+const incFrequencySelect = document.getElementById("incFrequency");
+const incFirstMonthInput = document.getElementById("incFirstMonth");
+const incFirstAmountInput = document.getElementById("incFirstAmount");
+
+function syncIncomeTypeFields() {
+  const variable = incTypeSelect.value === "variable";
+  incAmountInput.hidden = variable;
+  incAmountInput.required = !variable;
+  incFrequencySelect.hidden = variable;
+  incFirstMonthInput.hidden = !variable;
+  incFirstMonthInput.required = variable;
+  incFirstAmountInput.hidden = !variable;
+  incFirstAmountInput.required = variable;
+  if (variable && !incFirstMonthInput.value) {
+    const now = new Date();
+    incFirstMonthInput.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
+  }
+}
+incTypeSelect.addEventListener("change", syncIncomeTypeFields);
+syncIncomeTypeFields();
+
 document.getElementById("incomeForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const name = document.getElementById("incName").value.trim();
-  const amount = parseFloat(document.getElementById("incAmount").value);
-  const frequency = document.getElementById("incFrequency").value;
-  if (!name || isNaN(amount)) return;
-  state.income.push({ id: crypto.randomUUID(), name, amount, frequency });
+  if (!name) return;
+
+  if (incTypeSelect.value === "variable") {
+    const month = incFirstMonthInput.value;
+    const amount = parseFloat(incFirstAmountInput.value);
+    if (!month || isNaN(amount)) return;
+    state.income.push({
+      id: crypto.randomUUID(),
+      name,
+      type: "variable",
+      basis: "lowest",
+      history: [{ id: crypto.randomUUID(), month, amount }],
+    });
+  } else {
+    const amount = parseFloat(incAmountInput.value);
+    const frequency = incFrequencySelect.value;
+    if (isNaN(amount)) return;
+    state.income.push({ id: crypto.randomUUID(), name, type: "fixed", amount, frequency });
+  }
+
   saveData();
   e.target.reset();
+  syncIncomeTypeFields();
   render();
 });
 

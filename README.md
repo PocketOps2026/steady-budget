@@ -13,6 +13,22 @@ Everything runs client-side and saves to your browser's local storage. There's
 no account, no bank linking, and no database, and no AI calls — all the
 feedback is rule-based and instant.
 
+## Variable / commission income
+
+Not every income source is a predictable paycheck. When adding an income
+source, choose **Variable / commission** instead of Fixed, and log actual
+amounts as they come in (one entry per month). The app then computes:
+
+- the average of your last (up to) 6 logged months, and
+- the lowest of those months.
+
+By default it budgets off the **lowest recent month** — the standard advice
+for commission-based income is to budget against a bad month, not an average
+one, so a slow month doesn't leave you short. You can switch a source to
+"average" instead from its basis dropdown, but the app will flag that as
+riskier if your income swings a lot. Any month can be edited by re-logging
+the same month with a new amount, or removed with the × next to it.
+
 ## What's new in this version
 
 - **New name and look** — renamed from Steady to Harbor, with a warm color
