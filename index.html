@@ -5,7 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="theme-color" content="#c1673f" />
 <title>Harbor — a due-date-first budget</title>
+<script>
+  // Applied before first paint so switching themes doesn't cause a flash
+  // of the previous theme on reload.
+  (function () {
+    try {
+      var t = localStorage.getItem("harbor-theme-v1") || "harbor";
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (e) {}
+  })();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23c1673f'/%3E%3Ccircle cx='16' cy='10' r='3' fill='none' stroke='white' stroke-width='2.3'/%3E%3Cline x1='16' y1='13' x2='16' y2='24' stroke='white' stroke-width='2.3' stroke-linecap='round'/%3E%3Cpath d='M8 18c0 4.4 3.6 8 8 8s8-3.6 8-8' fill='none' stroke='white' stroke-width='2.3' stroke-linecap='round'/%3E%3Cline x1='11' y1='15' x2='21' y2='15' stroke='white' stroke-width='2.3' stroke-linecap='round'/%3E%3C/svg%3E" />
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+<link rel="manifest" href="manifest.json" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -23,8 +36,14 @@
     <span class="brand-name">Harbor</span>
   </div>
   <div class="topbar-actions">
+    <select id="themeSelect" class="theme-select" title="Color theme" aria-label="Color theme">
+      <option value="harbor">Harbor</option>
+      <option value="tide">Tide</option>
+      <option value="dusk">Dusk</option>
+    </select>
     <button id="printBtn" class="ghost-btn" title="Print a clean summary of this month">Print</button>
-    <button id="exportBtn" class="ghost-btn" title="Download a backup of your data">Export</button>
+    <button id="exportXlsxBtn" class="ghost-btn" title="Download a spreadsheet — good for an accountant or tax prep">Export Spreadsheet</button>
+    <button id="exportBtn" class="ghost-btn" title="Download a backup file to restore or share between devices">Backup</button>
     <label class="ghost-btn" for="importFile" title="Load a backup file">Import
       <input type="file" id="importFile" accept="application/json" hidden />
     </label>
@@ -296,6 +315,7 @@
   <p>Your data stays in this browser (localStorage). Use Export/Import to move it between devices or back it up.</p>
 </footer>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

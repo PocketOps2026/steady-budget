@@ -834,6 +834,23 @@ function buildFeedback(income, bills, leftover, today) {
     }
   }
 
+  // Fixed income changes — flag both cuts and raises since the last logged amount.
+  for (const inc of state.income.filter(i => (i.type || "fixed") !== "variable")) {
+    const jump = incomeAmountJump(inc);
+    if (!jump) continue;
+    if (jump.pctChange <= -3) {
+      items.push({
+        level: "warn",
+        text: `${inc.name} dropped from ${fmtMoney(jump.prev.amount)} to ${fmtMoney(jump.cur.amount)} (${Math.round(jump.pctChange)}%) since ${monthLabel(jump.prev.month)} — worth rechecking the rest of your budget against the new number.`,
+      });
+    } else if (jump.pctChange >= 3) {
+      items.push({
+        level: "good",
+        text: `${inc.name} increased from ${fmtMoney(jump.prev.amount)} to ${fmtMoney(jump.cur.amount)} (+${Math.round(jump.pctChange)}%) since ${monthLabel(jump.prev.month)}.`,
+      });
+    }
+  }
+
   // Month-over-month comparison, once there's history to compare against.
   const sortedSnaps = (state.monthlySnapshots || []).slice().sort((a, b) => a.month.localeCompare(b.month));
   const curIdx = sortedSnaps.findIndex(s => s.month === monthKey(today));
@@ -916,6 +933,32 @@ function renderCategoryBars() {
   });
 }
 
+// Which fixed income IDs currently have their "update amount" mini-form
+// expanded. UI-only state — not persisted, reset each page load.
+const expandedIncomeAmountIds = new Set();
+
+function incomeAmountJump(inc) {
+  const hist = (inc.amountHistory || []).slice().sort((a, b) => a.month.localeCompare(b.month));
+  if (hist.length < 2) return null;
+  const prev = hist[hist.length - 2];
+  const cur = hist[hist.length - 1];
+  if (!prev.amount || prev.amount <= 0) return null;
+  const pctChange = ((cur.amount - prev.amount) / prev.amount) * 100;
+  return { prev, cur, pctChange };
+}
+
+function updateIncomeAmount(inc, newAmount) {
+  const key = monthKey(new Date());
+  inc.amountHistory = inc.amountHistory || [];
+  const existing = inc.amountHistory.find(h => h.month === key);
+  if (existing) existing.amount = newAmount;
+  else inc.amountHistory.push({ id: crypto.randomUUID(), month: key, amount: newAmount });
+  inc.amountHistory.sort((a, b) => a.month.localeCompare(b.month));
+  inc.amount = newAmount;
+  saveData();
+  render();
+}
+
 function renderIncomeList() {
   const wrap = document.getElementById("incomeList");
   wrap.innerHTML = "";
@@ -933,16 +976,54 @@ function renderIncomeList() {
         <span class="entry-row-sub">${fmtMoney(inc.amount)} · ${freqLabel(inc.frequency)}${schedule ? " · " + schedule : ""}</span>
       </div>
     `;
-    const btn = document.createElement("button");
-    btn.className = "remove-btn";
-    btn.textContent = "Remove";
-    btn.addEventListener("click", () => {
+    const updateBtn = document.createElement("button");
+    updateBtn.className = "remove-btn";
+    updateBtn.textContent = expandedIncomeAmountIds.has(inc.id) ? "Hide" : "Update amount";
+    updateBtn.addEventListener("click", () => {
+      if (expandedIncomeAmountIds.has(inc.id)) expandedIncomeAmountIds.delete(inc.id);
+      else expandedIncomeAmountIds.add(inc.id);
+      renderIncomeList();
+    });
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
       state.income.splice(idx, 1);
       saveData();
       render();
     });
-    row.appendChild(btn);
+    row.appendChild(updateBtn);
+    row.appendChild(removeBtn);
     wrap.appendChild(row);
+
+    if (expandedIncomeAmountIds.has(inc.id)) {
+      const form = document.createElement("form");
+      form.className = "variable-add-form";
+      form.setAttribute("autocomplete", "off");
+
+      const amtInput = document.createElement("input");
+      amtInput.type = "number";
+      amtInput.min = "0";
+      amtInput.step = "0.01";
+      amtInput.placeholder = "New amount for " + inc.name;
+      amtInput.autocomplete = "off";
+      amtInput.required = true;
+
+      const submitBtn = document.createElement("button");
+      submitBtn.type = "submit";
+      submitBtn.className = "add-btn";
+      submitBtn.textContent = "Log new amount";
+
+      form.appendChild(amtInput);
+      form.appendChild(submitBtn);
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const newAmount = parseFloat(amtInput.value);
+        if (isNaN(newAmount) || newAmount < 0) return;
+        updateIncomeAmount(inc, newAmount);
+      });
+      wrap.appendChild(form);
+    }
   });
 }
 
@@ -1545,7 +1626,10 @@ document.getElementById("incomeForm").addEventListener("submit", (e) => {
     const amount = parseFloat(incAmountInput.value);
     const frequency = incFrequencySelect.value;
     if (isNaN(amount)) return;
-    const entry = { id: crypto.randomUUID(), name, type: "fixed", amount, frequency };
+    const entry = {
+      id: crypto.randomUUID(), name, type: "fixed", amount, frequency,
+      amountHistory: [{ id: crypto.randomUUID(), month: monthKey(new Date()), amount }],
+    };
 
     if (frequency === "monthly" && incPayDayInput.value) {
       entry.payDay = parseInt(incPayDayInput.value, 10);
@@ -1660,6 +1744,79 @@ document.getElementById("exportBtn").addEventListener("click", () => {
   URL.revokeObjectURL(url);
 });
 
+function exportSpreadsheet() {
+  if (typeof XLSX === "undefined") {
+    showToast("Couldn't load the spreadsheet tool — check your internet connection and try again.");
+    return;
+  }
+
+  const wb = XLSX.utils.book_new();
+
+  // --- Summary ---
+  const incomeTotal = totalMonthlyIncome();
+  const billsTotal = totalMonthlyBills();
+  const summaryRows = [
+    { Item: "Monthly income", Amount: Math.round(incomeTotal) },
+    { Item: "Monthly bills & expenses", Amount: Math.round(billsTotal) },
+    { Item: "Left over", Amount: Math.round(incomeTotal - billsTotal) },
+    { Item: "Exported on", Amount: new Date().toLocaleDateString() },
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(summaryRows), "Summary");
+
+  // --- Income ---
+  const incomeRows = state.income.map((inc) => {
+    const isVariable = inc.type === "variable";
+    const monthly = isVariable ? computeVariableMonthly(inc).basisValue : monthlyAmount(inc.amount, inc.frequency);
+    return {
+      Name: inc.name,
+      Type: isVariable ? "Variable / commission" : "Fixed",
+      "Monthly amount": Math.round(monthly),
+      Frequency: isVariable ? "Varies" : freqLabel(inc.frequency),
+      Schedule: isVariable ? "" : (incomeScheduleLabel(inc) || ""),
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(incomeRows), "Income");
+
+  // --- Bills & Expenses ---
+  const billRows = activeBills().map((b) => {
+    const paidFromInc = b.paidFrom ? state.income.find((i) => i.id === b.paidFrom) : null;
+    return {
+      Name: b.name,
+      Category: b.category,
+      Priority: b.priority === "flexible" ? "Flexible" : "Essential",
+      "Monthly amount": Math.round(monthlyAmount(b.amount, billFrequency(b))),
+      Frequency: freqLabel(billFrequency(b)),
+      Schedule: billScheduleLabel(b),
+      "Paid from": paidFromInc ? paidFromInc.name : "",
+      Debt: b.isDebt ? "Yes" : "No",
+      "Remaining balance": b.isDebt ? Math.round(b.balance) : "",
+      "Interest rate %": b.isDebt && b.interestRate !== undefined ? b.interestRate : "",
+    };
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(billRows), "Bills & Expenses");
+
+  // --- Debt summary (only if there are active debts) ---
+  const debts = activeBills().filter((b) => b.isDebt);
+  if (debts.length > 0) {
+    const debtRows = debts.map((d) => {
+      const payment = monthlyAmount(d.amount, billFrequency(d));
+      const months = monthsToPayoff(d.balance, payment, d.interestRate);
+      return {
+        Name: d.name,
+        "Remaining balance": Math.round(d.balance),
+        "Interest rate %": d.interestRate !== undefined ? d.interestRate : "",
+        "Monthly payment": Math.round(payment),
+        "Est. months to payoff": Number.isFinite(months) ? months : "N/A",
+      };
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(debtRows), "Debt");
+  }
+
+  XLSX.writeFile(wb, `harbor-budget-${monthKey(new Date())}.xlsx`);
+}
+
+document.getElementById("exportXlsxBtn").addEventListener("click", exportSpreadsheet);
+
 document.getElementById("importFile").addEventListener("change", (e) => {
   const file = e.target.files[0];
   if (!file) return;
@@ -1704,5 +1861,22 @@ tabButtons.forEach(btn => {
 let initialTab = "today";
 try { initialTab = localStorage.getItem(TAB_STORAGE_KEY) || "today"; } catch (e) {}
 setActiveTab(initialTab);
+
+// ---------- theme ----------
+// A display preference, not budget data — stored under its own key so it's
+// untouched by Export/Import/Backup and never travels with a shared backup file.
+const THEME_STORAGE_KEY = "harbor-theme-v1";
+const themeSelect = document.getElementById("themeSelect");
+if (themeSelect) {
+  let savedTheme = "harbor";
+  try { savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || "harbor"; } catch (e) {}
+  themeSelect.value = savedTheme;
+  // The <head> inline script already applied this theme before first paint —
+  // this just keeps the dropdown in sync and handles future changes.
+  themeSelect.addEventListener("change", () => {
+    document.documentElement.setAttribute("data-theme", themeSelect.value);
+    try { localStorage.setItem(THEME_STORAGE_KEY, themeSelect.value); } catch (e) {}
+  });
+}
 
 render();

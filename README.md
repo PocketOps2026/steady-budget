@@ -49,6 +49,11 @@ tab is open.
   new amount when it changes. If a bill jumps 8%+ since the last time you
   logged it, feedback flags it — catches quiet cost creep (utilities,
   insurance, subscriptions) before it compounds.
+- **Fixed income tracking.** Click "Update amount" next to any fixed income
+  source when your pay changes — a raise, a cut, a new job. Feedback flags
+  any change of 3%+ since the last logged amount, in either direction, so a
+  pay cut doesn't quietly go unnoticed against a budget still built on the
+  old number.
 - **Print view.** The Print button in the top bar gives a clean, paper-
   friendly summary — all the interactive controls are hidden automatically
   for printing.
@@ -59,6 +64,19 @@ tab is open.
 - **Income coverage.** With 2+ income sources, tag which one pays for each
   bill ("Paid from" on the bill form). A new card shows how much of each
   paycheck is allocated vs. left over, and flags anything unassigned.
+- **Export Spreadsheet.** Downloads a real `.xlsx` workbook (Summary, Income,
+  Bills & Expenses, and — if you have any debt logged — a Debt sheet) instead
+  of a raw data file. Good for handing to an accountant or tax preparer.
+  "Backup" (previously labeled "Export") is unchanged — that one still
+  downloads the JSON file used to move your data to another device or import
+  it back in.
+- **Color themes.** A dropdown in the top bar switches between Harbor (the
+  original warm palette), Tide (a cooler blue/nautical look), and Dusk (dark
+  mode). Your choice is remembered per-device and saved separately from your
+  budget data, so it doesn't get bundled into backups or affect your spouse's
+  device.
+- **App icon.** Harbor now has a proper icon for browser tabs and "Add to
+  Home Screen" on phones (the anchor mark, at the sizes iOS/Android expect).
 
 ## Variable / commission income
 

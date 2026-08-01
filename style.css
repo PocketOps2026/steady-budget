@@ -13,8 +13,81 @@
   --accent: #c1673f;
   --accent-2: #4d7c5f;
   --accent-bg: #f7e9e0;
+  --accent-light: #d98a5e;
+  --accent2-light: #6fa683;
+  --bad-light: #c76a5e;
+  --warn-light: #d9a35e;
+  --hover-line: #ddcfbb;
+  --btn-hover-bg: #f0dbc9;
+  --bg-glow: #fdf1e6;
+  --bg-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201440%20500%22%20preserveAspectRatio%3D%22xMidYMax%20slice%22%3E%20%3Cpath%20d%3D%22M0%20340%20C%20180%20300%20300%20300%20480%20335%20C%20660%20370%20780%20370%20960%20335%20C%201140%20300%201260%20300%201440%20340%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%236fa683%22%20fill-opacity%3D%220.5%22%2F%3E%20%3Cpath%20d%3D%22M0%20390%20C%20200%20355%20320%20355%20500%20385%20C%20680%20415%20800%20415%20980%20385%20C%201160%20355%201280%20355%201440%20390%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%234d7c5f%22%20fill-opacity%3D%220.55%22%2F%3E%20%3Cpath%20d%3D%22M0%20440%20C%20220%20415%20340%20415%20520%20435%20C%20700%20455%20820%20455%201000%20435%20C%201180%20415%201300%20415%201440%20440%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%234d7c5f%22%20fill-opacity%3D%220.85%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23c1673f%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.5%22%3E%20%3Cpath%20d%3D%22M220%20300%20l0%20-46%22%2F%3E%20%3Cpath%20d%3D%22M220%20258%20l34%2020%20-34%2020%20z%22%20fill%3D%22%23c1673f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M198%20300%20l44%200%20-8%2020%20-28%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23c1673f%22%20stroke-width%3D%223.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.38%22%3E%20%3Cpath%20d%3D%22M1180%20330%20l0%20-38%22%2F%3E%20%3Cpath%20d%3D%22M1180%20296%20l28%2016%20-28%2016%20z%22%20fill%3D%22%23c1673f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M1162%20330%20l36%200%20-6%2016%20-24%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23c1673f%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.3%22%3E%20%3Cpath%20d%3D%22M760%20268%20l0%20-32%22%2F%3E%20%3Cpath%20d%3D%22M760%20240%20l24%2014%20-24%2014%20z%22%20fill%3D%22%23c1673f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M745%20268%20l30%200%20-5%2013%20-20%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E");
+  --bg-image-opacity: 0.4;
+  --accent-shadow: rgba(193, 103, 63, 0.28);
+  --hero-glow-1: rgba(193, 103, 63, 0.05);
+  --hero-glow-2: rgba(77, 124, 95, 0.05);
   --radius: 18px;
   --shadow: 0 2px 10px rgba(120, 90, 60, 0.06);
+}
+
+/* Tide — a cooler, nautical-blue variant of the same layout. */
+html[data-theme="tide"] {
+  --bg: #eef5f7;
+  --card: #ffffff;
+  --ink: #1f2f36;
+  --muted: #6f8892;
+  --line: #dbe8ec;
+  --good: #2f7d6b;
+  --good-bg: #e2f3ee;
+  --warn: #b5793a;
+  --warn-bg: #faf0de;
+  --bad: #b1503f;
+  --bad-bg: #fbebe7;
+  --accent: #2b6f8f;
+  --accent-2: #1f8a70;
+  --accent-bg: #e1eef3;
+  --accent-light: #4a92b3;
+  --accent2-light: #4bab8b;
+  --bad-light: #c76a5e;
+  --warn-light: #d9a35e;
+  --hover-line: #c9dde3;
+  --btn-hover-bg: #d9ecf1;
+  --bg-glow: #e4f1f5;
+  --bg-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201440%20500%22%20preserveAspectRatio%3D%22xMidYMax%20slice%22%3E%20%3Cpath%20d%3D%22M0%20340%20C%20180%20300%20300%20300%20480%20335%20C%20660%20370%20780%20370%20960%20335%20C%201140%20300%201260%20300%201440%20340%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%234bab8b%22%20fill-opacity%3D%220.5%22%2F%3E%20%3Cpath%20d%3D%22M0%20390%20C%20200%20355%20320%20355%20500%20385%20C%20680%20415%20800%20415%20980%20385%20C%201160%20355%201280%20355%201440%20390%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%231f8a70%22%20fill-opacity%3D%220.55%22%2F%3E%20%3Cpath%20d%3D%22M0%20440%20C%20220%20415%20340%20415%20520%20435%20C%20700%20455%20820%20455%201000%20435%20C%201180%20415%201300%20415%201440%20440%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%231f8a70%22%20fill-opacity%3D%220.85%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%232b6f8f%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.5%22%3E%20%3Cpath%20d%3D%22M220%20300%20l0%20-46%22%2F%3E%20%3Cpath%20d%3D%22M220%20258%20l34%2020%20-34%2020%20z%22%20fill%3D%22%232b6f8f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M198%20300%20l44%200%20-8%2020%20-28%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%232b6f8f%22%20stroke-width%3D%223.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.38%22%3E%20%3Cpath%20d%3D%22M1180%20330%20l0%20-38%22%2F%3E%20%3Cpath%20d%3D%22M1180%20296%20l28%2016%20-28%2016%20z%22%20fill%3D%22%232b6f8f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M1162%20330%20l36%200%20-6%2016%20-24%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%232b6f8f%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.3%22%3E%20%3Cpath%20d%3D%22M760%20268%20l0%20-32%22%2F%3E%20%3Cpath%20d%3D%22M760%20240%20l24%2014%20-24%2014%20z%22%20fill%3D%22%232b6f8f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M745%20268%20l30%200%20-5%2013%20-20%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E");
+  --bg-image-opacity: 0.42;
+  --accent-shadow: rgba(43, 111, 143, 0.25);
+  --hero-glow-1: rgba(43, 111, 143, 0.06);
+  --hero-glow-2: rgba(31, 138, 112, 0.06);
+}
+
+/* Dusk — dark mode. */
+html[data-theme="dusk"] {
+  --bg: #14171b;
+  --card: #1d2126;
+  --ink: #edf0f3;
+  --muted: #939ca6;
+  --line: #2b3036;
+  --good: #74c397;
+  --good-bg: rgba(116, 195, 151, 0.14);
+  --warn: #e2ab63;
+  --warn-bg: rgba(226, 171, 99, 0.14);
+  --bad: #e17f70;
+  --bad-bg: rgba(225, 127, 112, 0.14);
+  --accent: #e0895f;
+  --accent-2: #63b18c;
+  --accent-bg: rgba(224, 137, 95, 0.16);
+  --accent-light: #ecab82;
+  --accent2-light: #86c7a5;
+  --bad-light: #ea9a8d;
+  --warn-light: #edc38c;
+  --hover-line: #3a4048;
+  --btn-hover-bg: #2a2f36;
+  --bg-glow: #241d18;
+  --bg-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%201440%20500%22%20preserveAspectRatio%3D%22xMidYMax%20slice%22%3E%20%3Cpath%20d%3D%22M0%20340%20C%20180%20300%20300%20300%20480%20335%20C%20660%20370%20780%20370%20960%20335%20C%201140%20300%201260%20300%201440%20340%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%2386c7a5%22%20fill-opacity%3D%220.5%22%2F%3E%20%3Cpath%20d%3D%22M0%20390%20C%20200%20355%20320%20355%20500%20385%20C%20680%20415%20800%20415%20980%20385%20C%201160%20355%201280%20355%201440%20390%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%2363b18c%22%20fill-opacity%3D%220.55%22%2F%3E%20%3Cpath%20d%3D%22M0%20440%20C%20220%20415%20340%20415%20520%20435%20C%20700%20455%20820%20455%201000%20435%20C%201180%20415%201300%20415%201440%20440%20L1440%20500%20L0%20500%20Z%22%20fill%3D%22%2363b18c%22%20fill-opacity%3D%220.85%22%2F%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23e0895f%22%20stroke-width%3D%224%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.5%22%3E%20%3Cpath%20d%3D%22M220%20300%20l0%20-46%22%2F%3E%20%3Cpath%20d%3D%22M220%20258%20l34%2020%20-34%2020%20z%22%20fill%3D%22%23e0895f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M198%20300%20l44%200%20-8%2020%20-28%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23e0895f%22%20stroke-width%3D%223.4%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.38%22%3E%20%3Cpath%20d%3D%22M1180%20330%20l0%20-38%22%2F%3E%20%3Cpath%20d%3D%22M1180%20296%20l28%2016%20-28%2016%20z%22%20fill%3D%22%23e0895f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M1162%20330%20l36%200%20-6%2016%20-24%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3Cg%20fill%3D%22none%22%20stroke%3D%22%23e0895f%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%20opacity%3D%220.3%22%3E%20%3Cpath%20d%3D%22M760%20268%20l0%20-32%22%2F%3E%20%3Cpath%20d%3D%22M760%20240%20l24%2014%20-24%2014%20z%22%20fill%3D%22%23e0895f%22%20stroke%3D%22none%22%2F%3E%20%3Cpath%20d%3D%22M745%20268%20l30%200%20-5%2013%20-20%200%20z%22%2F%3E%20%3C%2Fg%3E%20%3C%2Fsvg%3E");
+  --shadow: 0 2px 14px rgba(0, 0, 0, 0.5);
+  --bg-image-opacity: 0.2;
+  --accent-shadow: rgba(224, 137, 95, 0.35);
+  --hero-glow-1: rgba(224, 137, 95, 0.08);
+  --hero-glow-2: rgba(99, 177, 140, 0.08);
 }
 
 * { box-sizing: border-box; }
@@ -30,11 +103,35 @@
 body {
   margin: 0;
   background:
-    radial-gradient(1200px 480px at 50% -120px, #fdf1e6 0%, rgba(253, 241, 230, 0) 60%),
+    radial-gradient(1200px 480px at 50% -120px, var(--bg-glow) 0%, rgba(0, 0, 0, 0) 60%),
     var(--bg);
   color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   line-height: 1.5;
+  transition: background-color 0.25s ease, color 0.25s ease;
+  position: relative;
+  min-height: 100vh;
+}
+
+/* Themed background illustration — a faint harbor/water motif fixed behind
+   all content. Purely decorative: aria-hidden, no pointer events, kept low-
+   contrast enough in every theme to never fight with the text on top. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--bg-image);
+  background-repeat: no-repeat;
+  background-position: bottom center;
+  background-size: cover;
+  opacity: var(--bg-image-opacity);
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+@media print {
+  body::before { display: none; }
 }
 
 main {
@@ -66,13 +163,13 @@ main {
   white-space: nowrap;
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.tab-btn:hover { background: var(--card); border-color: #ddcfbb; }
+.tab-btn:hover { background: var(--card); border-color: var(--hover-line); }
 .tab-btn:active { transform: scale(0.97); }
 .tab-btn.active {
-  background: linear-gradient(135deg, var(--accent), #d98a5e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: white;
   border-color: transparent;
-  box-shadow: 0 3px 8px rgba(193, 103, 63, 0.25);
+  box-shadow: 0 3px 8px var(--accent-shadow);
 }
 
 .tab-panel {
@@ -104,9 +201,9 @@ main {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #d98a5e);
+  background: linear-gradient(135deg, var(--accent), var(--accent-light));
   color: #fff;
-  box-shadow: 0 3px 8px rgba(193, 103, 63, 0.28);
+  box-shadow: 0 3px 8px var(--accent-shadow);
 }
 
 .topbar-actions { display: flex; gap: 8px; }
@@ -121,8 +218,21 @@ main {
   cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
-.ghost-btn:hover { background: var(--card); border-color: #ddcfbb; }
+.ghost-btn:hover { background: var(--card); border-color: var(--hover-line); }
 .ghost-btn:active { transform: scale(0.97); }
+
+.theme-select {
+  background: none;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.theme-select:hover { background: var(--card); border-color: var(--hover-line); }
 
 .card {
   background: var(--card);
@@ -153,7 +263,7 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(120deg, rgba(193, 103, 63, 0.05), rgba(77, 124, 95, 0.05));
+  background: linear-gradient(120deg, var(--hero-glow-1), var(--hero-glow-2));
   pointer-events: none;
 }
 
@@ -451,7 +561,7 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
   flex: 0 0 auto;
   transition: background 0.12s ease, transform 0.1s ease;
 }
-.add-btn:hover { background: #f0dbc9; }
+.add-btn:hover { background: var(--btn-hover-bg); }
 .add-btn:active { transform: scale(0.96); }
 
 .category-bars { display: flex; flex-direction: column; gap: 10px; }
@@ -461,7 +571,7 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
 .cat-fill {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, var(--accent), #d98a5e);
+  background: linear-gradient(90deg, var(--accent), var(--accent-light));
   border-radius: 6px;
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -488,8 +598,8 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
   border-radius: 6px;
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.trend-bar-fill.positive { left: 50%; background: linear-gradient(90deg, var(--accent-2), #6fa683); }
-.trend-bar-fill.negative { right: 50%; background: linear-gradient(90deg, var(--bad), #c76a5e); }
+.trend-bar-fill.positive { left: 50%; background: linear-gradient(90deg, var(--accent-2), var(--accent2-light)); }
+.trend-bar-fill.negative { right: 50%; background: linear-gradient(90deg, var(--bad), var(--bad-light)); }
 .trend-leftover {
   width: 74px;
   flex-shrink: 0;
@@ -537,12 +647,12 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
 .payoff-fill {
   height: 100%;
   width: 0;
-  background: linear-gradient(90deg, var(--accent-2), #6fa683);
+  background: linear-gradient(90deg, var(--accent-2), var(--accent2-light));
   border-radius: 6px;
   transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .payoff-fill.sinking-fill {
-  background: linear-gradient(90deg, var(--warn), #d9a35e);
+  background: linear-gradient(90deg, var(--warn), var(--warn-light));
 }
 .payoff-adjust { display: flex; gap: 6px; align-items: center; }
 .payoff-adjust input {
@@ -564,7 +674,7 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
   cursor: pointer;
   transition: background 0.12s ease;
 }
-.payoff-adjust button:hover { background: #f0dbc9; }
+.payoff-adjust button:hover { background: var(--btn-hover-bg); }
 
 .paidoff-item {
   background: var(--good-bg);
