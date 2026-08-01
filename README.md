@@ -13,6 +13,53 @@ Everything runs client-side and saves to your browser's local storage. There's
 no account, no bank linking, and no database, and no AI calls — all the
 feedback is rule-based and instant.
 
+## Layout
+
+The app is organized into 5 tabs: **Today** (stats, next-paycheck window,
+what's due, feedback — the one you'll open most), **Calendar** (the month-by-
+month view), **Income & Bills** (entry forms and the income coverage card),
+**Debt & Goals** (debt strategy, paying off, paid off, saving for), and
+**Trends** (category breakdown and month-over-month history). Your last-used
+tab is remembered, and Print always outputs all of them regardless of which
+tab is open.
+
+## Power features (no AI involved — all rule-based)
+
+- **Before your next paycheck.** Add a pay day to a fixed income source (a
+  day of the month, a weekday, or two paydays for semimonthly pay) and a new
+  card shows everything due before that paycheck lands, how much is
+  arriving, and whether it covers it. Skip the pay-date fields and this card
+  just prompts you to add one — nothing breaks.
+- **Saving for.** A savings-goal tracker separate from debt payoff, for
+  irregular costs you can see coming (car registration, holiday gifts,
+  annual premiums). Set a target amount and month, log contributions as you
+  make them, and it tells you the pace needed to hit the goal on time.
+- **Trend.** Once you've used the app across more than one calendar month,
+  a chart appears showing income/bills/leftover for each recent month, plus
+  a feedback line comparing this month to last.
+- **Debt strategy.** Add an optional interest rate when marking a bill as
+  debt. With 2+ debts, a new card ranks which one to throw extra money at
+  first (highest rate first — mathematically saves the most) and estimates
+  monthly interest cost and payoff time per debt. No rates entered yet? It
+  falls back to smallest-balance-first and tells you as much.
+
+## More power features (still no AI — all rule-based)
+
+- **Bill price tracking.** Click "Update price" next to any bill to log a
+  new amount when it changes. If a bill jumps 8%+ since the last time you
+  logged it, feedback flags it — catches quiet cost creep (utilities,
+  insurance, subscriptions) before it compounds.
+- **Print view.** The Print button in the top bar gives a clean, paper-
+  friendly summary — all the interactive controls are hidden automatically
+  for printing.
+- **Essential vs. Flexible.** Tag each bill as Essential or Flexible when
+  adding it. When the budget's tight, feedback points specifically at your
+  flexible spending instead of just your biggest category (which is often
+  rent — not something you can cut).
+- **Income coverage.** With 2+ income sources, tag which one pays for each
+  bill ("Paid from" on the bill form). A new card shows how much of each
+  paycheck is allocated vs. left over, and flags anything unassigned.
+
 ## Variable / commission income
 
 Not every income source is a predictable paycheck. When adding an income

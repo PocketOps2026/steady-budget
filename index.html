@@ -23,6 +23,7 @@
     <span class="brand-name">Harbor</span>
   </div>
   <div class="topbar-actions">
+    <button id="printBtn" class="ghost-btn" title="Print a clean summary of this month">Print</button>
     <button id="exportBtn" class="ghost-btn" title="Download a backup of your data">Export</button>
     <label class="ghost-btn" for="importFile" title="Load a backup file">Import
       <input type="file" id="importFile" accept="application/json" hidden />
@@ -32,159 +33,262 @@
 
 <main>
 
-  <section class="hero card">
-    <p class="hero-eyebrow" id="todayLabel">Today</p>
-    <div class="hero-grid">
-      <div class="hero-stat">
-        <p class="hero-stat-label">Monthly income</p>
-        <p class="hero-stat-value" id="statIncome">$0</p>
-      </div>
-      <div class="hero-stat">
-        <p class="hero-stat-label">Monthly bills</p>
-        <p class="hero-stat-value" id="statBills">$0</p>
-      </div>
-      <div class="hero-stat hero-stat-main">
-        <p class="hero-stat-label">Left over</p>
-        <p class="hero-stat-value" id="statLeftover">$0</p>
-      </div>
-    </div>
-  </section>
+  <nav class="tabbar" id="tabbar">
+    <button type="button" class="tab-btn" data-tab="today">Today</button>
+    <button type="button" class="tab-btn" data-tab="calendar">Calendar</button>
+    <button type="button" class="tab-btn" data-tab="income">Income &amp; Bills</button>
+    <button type="button" class="tab-btn" data-tab="debt">Debt &amp; Goals</button>
+    <button type="button" class="tab-btn" data-tab="trends">Trends</button>
+  </nav>
 
-  <section class="card">
-    <div class="section-head">
-      <h2>What's due</h2>
-      <p class="section-sub">Sorted by soonest, not by category. This is the whole point of Harbor.</p>
-    </div>
-    <div id="dueList" class="due-list"></div>
-    <p id="dueEmpty" class="empty-note" hidden>Add a bill below to see your due-date timeline.</p>
-  </section>
+  <div class="tab-panel" data-tab-panel="today">
 
-  <section class="card">
-    <div class="section-head month-head">
-      <div>
-        <h2>Month by month</h2>
-        <p class="section-sub">Every occurrence in the month — weekly and biweekly bills included, like child support paid every Friday.</p>
+    <section class="hero card">
+      <p class="hero-eyebrow" id="todayLabel">Today</p>
+      <div class="hero-grid">
+        <div class="hero-stat">
+          <p class="hero-stat-label">Monthly income</p>
+          <p class="hero-stat-value" id="statIncome">$0</p>
+        </div>
+        <div class="hero-stat">
+          <p class="hero-stat-label">Monthly bills</p>
+          <p class="hero-stat-value" id="statBills">$0</p>
+        </div>
+        <div class="hero-stat hero-stat-main">
+          <p class="hero-stat-label">Left over</p>
+          <p class="hero-stat-value" id="statLeftover">$0</p>
+        </div>
       </div>
-      <div class="month-nav">
-        <button id="monthPrev" class="ghost-btn" type="button" aria-label="Previous month">‹</button>
-        <span id="monthLabel" class="month-label">Month</span>
-        <button id="monthNext" class="ghost-btn" type="button" aria-label="Next month">›</button>
-      </div>
-    </div>
-    <div class="month-summary">
-      <div><span class="month-summary-label">Due this month</span><span id="monthTotal" class="month-summary-value">$0</span></div>
-      <div><span class="month-summary-label">Income this month</span><span id="monthIncome" class="month-summary-value">$0</span></div>
-      <div><span class="month-summary-label">Leftover</span><span id="monthLeftover" class="month-summary-value">$0</span></div>
-    </div>
-    <div id="calendarWrap">
-      <div class="calendar-weekdays">
-        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
-      </div>
-      <div id="calendarGrid" class="calendar-grid"></div>
-    </div>
-    <p id="monthEmpty" class="empty-note" hidden>Add bills below to see them laid out on the calendar.</p>
-  </section>
+    </section>
 
-  <section class="card">
-    <div class="section-head">
-      <h2>Feedback</h2>
-      <p class="section-sub">Instant, rule-based — no waiting.</p>
-    </div>
-    <div id="feedbackList" class="feedback-list"></div>
-  </section>
-
-  <section class="card two-col">
-    <div class="col">
+    <section class="card" id="paycheckCard">
       <div class="section-head">
-        <h2>Income</h2>
+        <h2>Before your next paycheck</h2>
+        <p class="section-sub" id="paycheckSub">Add a pay day to an income source below to turn this on.</p>
       </div>
-      <div id="incomeList" class="entry-list"></div>
-      <form id="incomeForm" class="entry-form">
-        <input type="text" id="incName" placeholder="Source (e.g. Adam's paycheck)" required />
-        <select id="incType">
-          <option value="fixed">Fixed amount</option>
-          <option value="variable">Variable / commission</option>
-        </select>
-        <input type="number" id="incAmount" placeholder="Amount" min="0" step="0.01" />
-        <select id="incFrequency">
-          <option value="monthly">Monthly</option>
-          <option value="semimonthly">Twice a month</option>
-          <option value="biweekly">Every 2 weeks</option>
-          <option value="weekly">Weekly</option>
-          <option value="annual">Annually</option>
-        </select>
-        <input type="month" id="incFirstMonth" hidden />
-        <input type="number" id="incFirstAmount" placeholder="This month's amount" min="0" step="0.01" hidden />
-        <button type="submit" class="add-btn">Add</button>
-      </form>
-    </div>
+      <div id="paycheckSummary" class="month-summary" hidden>
+        <div><span class="month-summary-label">Due before then</span><span id="paycheckDue" class="month-summary-value">$0</span></div>
+        <div><span class="month-summary-label">Paycheck arriving</span><span id="paycheckIncoming" class="month-summary-value">$0</span></div>
+        <div><span class="month-summary-label">Covers it?</span><span id="paycheckCovers" class="month-summary-value">—</span></div>
+      </div>
+      <div id="paycheckList" class="due-list"></div>
+      <p id="paycheckEmpty" class="empty-note" hidden>Nothing due before your next paycheck — nice.</p>
+    </section>
 
-    <div class="col">
+    <section class="card">
       <div class="section-head">
-        <h2>Bills &amp; expenses</h2>
+        <h2>What's due</h2>
+        <p class="section-sub">Sorted by soonest, not by category. This is the whole point of Harbor.</p>
       </div>
-      <div id="billsList" class="entry-list"></div>
-      <form id="billForm" class="entry-form">
-        <input type="text" id="billName" placeholder="Bill (e.g. Rent)" required />
-        <input type="number" id="billAmount" placeholder="Amount" min="0" step="0.01" required />
-        <select id="billFrequency">
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-          <option value="biweekly">Every 2 weeks</option>
-        </select>
-        <input type="number" id="billDueDay" placeholder="Due day (1-31)" min="1" max="31" required />
-        <select id="billWeekday" hidden>
-          <option value="0">Sunday</option>
-          <option value="1">Monday</option>
-          <option value="2">Tuesday</option>
-          <option value="3">Wednesday</option>
-          <option value="4">Thursday</option>
-          <option value="5">Friday</option>
-          <option value="6">Saturday</option>
-        </select>
-        <input type="date" id="billAnchorDate" placeholder="First payment date" hidden />
-        <select id="billCategory">
-          <option>Housing</option>
-          <option>Utilities</option>
-          <option>Food</option>
-          <option>Transportation</option>
-          <option>Insurance</option>
-          <option>Debt</option>
-          <option>Subscriptions</option>
-          <option>Other</option>
-        </select>
-        <label class="checkbox-label">
-          <input type="checkbox" id="billIsDebt" />
-          Paying this off (loan / credit card)
-        </label>
-        <input type="number" id="billBalance" placeholder="Remaining balance" min="0" step="0.01" hidden />
-        <button type="submit" class="add-btn">Add</button>
+      <div id="dueList" class="due-list"></div>
+      <p id="dueEmpty" class="empty-note" hidden>Add a bill below to see your due-date timeline.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Feedback</h2>
+        <p class="section-sub">Instant, rule-based — no waiting.</p>
+      </div>
+      <div id="feedbackList" class="feedback-list"></div>
+    </section>
+
+  </div>
+
+  <div class="tab-panel" data-tab-panel="calendar">
+
+    <section class="card">
+      <div class="section-head month-head">
+        <div>
+          <h2>Month by month</h2>
+          <p class="section-sub">Every occurrence in the month — weekly and biweekly bills included, like child support paid every Friday.</p>
+        </div>
+        <div class="month-nav">
+          <button id="monthPrev" class="ghost-btn" type="button" aria-label="Previous month">‹</button>
+          <span id="monthLabel" class="month-label">Month</span>
+          <button id="monthNext" class="ghost-btn" type="button" aria-label="Next month">›</button>
+        </div>
+      </div>
+      <div class="month-summary">
+        <div><span class="month-summary-label">Due this month</span><span id="monthTotal" class="month-summary-value">$0</span></div>
+        <div><span class="month-summary-label">Income this month</span><span id="monthIncome" class="month-summary-value">$0</span></div>
+        <div><span class="month-summary-label">Leftover</span><span id="monthLeftover" class="month-summary-value">$0</span></div>
+      </div>
+      <div id="calendarWrap">
+        <div class="calendar-weekdays">
+          <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </div>
+      <p id="monthEmpty" class="empty-note" hidden>Add bills below to see them laid out on the calendar.</p>
+    </section>
+
+  </div>
+
+  <div class="tab-panel" data-tab-panel="income">
+
+    <section class="card two-col">
+      <div class="col">
+        <div class="section-head">
+          <h2>Income</h2>
+        </div>
+        <div id="incomeList" class="entry-list"></div>
+        <form id="incomeForm" class="entry-form" autocomplete="off">
+          <input type="text" id="incName" placeholder="Source (e.g. Adam's paycheck)" autocomplete="off" required />
+          <select id="incType">
+            <option value="fixed">Fixed amount</option>
+            <option value="variable">Variable / commission</option>
+          </select>
+          <input type="number" id="incAmount" placeholder="Amount" min="0" step="0.01" autocomplete="off" />
+          <select id="incFrequency">
+            <option value="monthly">Monthly</option>
+            <option value="semimonthly">Twice a month</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="weekly">Weekly</option>
+            <option value="annual">Annually</option>
+          </select>
+          <input type="month" id="incFirstMonth" autocomplete="off" hidden />
+          <input type="number" id="incFirstAmount" placeholder="This month's amount" min="0" step="0.01" autocomplete="off" hidden />
+          <input type="number" id="incPayDay" placeholder="Pay day (1-31)" min="1" max="31" autocomplete="off" hidden />
+          <input type="number" id="incPayDay1" placeholder="1st pay day (1-31)" min="1" max="31" autocomplete="off" hidden />
+          <input type="number" id="incPayDay2" placeholder="2nd pay day (1-31)" min="1" max="31" autocomplete="off" hidden />
+          <select id="incPayWeekday" hidden>
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+          <input type="date" id="incPayAnchorDate" placeholder="First pay date" autocomplete="off" hidden />
+          <button type="submit" class="add-btn">Add</button>
+        </form>
+      </div>
+
+      <div class="col">
+        <div class="section-head">
+          <h2>Bills &amp; expenses</h2>
+        </div>
+        <div id="billsList" class="entry-list"></div>
+        <form id="billForm" class="entry-form" autocomplete="off">
+          <input type="text" id="billName" placeholder="Bill (e.g. Rent)" autocomplete="off" required />
+          <input type="number" id="billAmount" placeholder="Amount" min="0" step="0.01" autocomplete="off" required />
+          <select id="billFrequency">
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every 2 weeks</option>
+          </select>
+          <input type="number" id="billDueDay" placeholder="Due day (1-31)" min="1" max="31" autocomplete="off" required />
+          <select id="billWeekday" hidden>
+            <option value="0">Sunday</option>
+            <option value="1">Monday</option>
+            <option value="2">Tuesday</option>
+            <option value="3">Wednesday</option>
+            <option value="4">Thursday</option>
+            <option value="5">Friday</option>
+            <option value="6">Saturday</option>
+          </select>
+          <input type="date" id="billAnchorDate" placeholder="First payment date" autocomplete="off" hidden />
+          <select id="billCategory">
+            <option>Housing</option>
+            <option>Utilities</option>
+            <option>Food</option>
+            <option>Transportation</option>
+            <option>Insurance</option>
+            <option>Debt</option>
+            <option>Subscriptions</option>
+            <option>Other</option>
+          </select>
+          <select id="billPriority">
+            <option value="essential">Essential</option>
+            <option value="flexible">Flexible</option>
+          </select>
+          <select id="billPaidFrom">
+            <option value="">Paid from: unassigned</option>
+          </select>
+          <label class="checkbox-label">
+            <input type="checkbox" id="billIsDebt" />
+            Paying this off (loan / credit card)
+          </label>
+          <input type="number" id="billBalance" placeholder="Remaining balance" min="0" step="0.01" autocomplete="off" hidden />
+          <input type="number" id="billInterestRate" placeholder="Interest rate % (optional)" min="0" step="0.01" autocomplete="off" hidden />
+          <button type="submit" class="add-btn">Add</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card" id="coverageCard" hidden>
+      <div class="section-head">
+        <h2>Income coverage</h2>
+        <p class="section-sub">Which paycheck is covering what.</p>
+      </div>
+      <div id="coverageList" class="entry-list"></div>
+    </section>
+
+  </div>
+
+  <div class="tab-panel" data-tab-panel="debt">
+
+    <section class="card" id="debtStrategyCard" hidden>
+      <div class="section-head">
+        <h2>Debt strategy</h2>
+        <p class="section-sub">Which one to attack first if you have extra to put toward debt.</p>
+      </div>
+      <div id="debtStrategyList"></div>
+    </section>
+
+    <section class="card" id="payoffCard" hidden>
+      <div class="section-head">
+        <h2>Paying off</h2>
+        <p class="section-sub">Watch these shrink to zero.</p>
+      </div>
+      <div id="payoffList" class="payoff-list"></div>
+    </section>
+
+    <section class="card" id="celebrateCard" hidden>
+      <div class="section-head">
+        <h2>🎉 Paid off</h2>
+      </div>
+      <div id="paidOffList" class="paidoff-list"></div>
+    </section>
+
+    <section class="card" id="sinkingCard">
+      <div class="section-head">
+        <h2>Saving for</h2>
+        <p class="section-sub">Irregular expenses you can see coming — car registration, holiday gifts, annual premiums.</p>
+      </div>
+      <div id="sinkingList" class="payoff-list"></div>
+      <p id="sinkingEmpty" class="empty-note" hidden>No savings goals yet — add one below.</p>
+      <form id="sinkingForm" class="entry-form" autocomplete="off">
+        <input type="text" id="sinkingName" placeholder="What for (e.g. Car registration)" autocomplete="off" required />
+        <input type="number" id="sinkingTarget" placeholder="Target amount" min="0" step="0.01" autocomplete="off" required />
+        <input type="month" id="sinkingMonth" autocomplete="off" required />
+        <button type="submit" class="add-btn">Add goal</button>
       </form>
-    </div>
-  </section>
+    </section>
 
-  <section class="card" id="payoffCard" hidden>
-    <div class="section-head">
-      <h2>Paying off</h2>
-      <p class="section-sub">Watch these shrink to zero.</p>
-    </div>
-    <div id="payoffList" class="payoff-list"></div>
-  </section>
+  </div>
 
-  <section class="card" id="celebrateCard" hidden>
-    <div class="section-head">
-      <h2>🎉 Paid off</h2>
-    </div>
-    <div id="paidOffList" class="paidoff-list"></div>
-  </section>
+  <div class="tab-panel" data-tab-panel="trends">
 
-  <section class="card">
-    <div class="section-head">
-      <h2>Where it's going</h2>
-    </div>
-    <div id="categoryBars" class="category-bars"></div>
-    <p id="categoryEmpty" class="empty-note" hidden>Category breakdown will show up once you add bills.</p>
-  </section>
+    <section class="card">
+      <div class="section-head">
+        <h2>Where it's going</h2>
+      </div>
+      <div id="categoryBars" class="category-bars"></div>
+      <p id="categoryEmpty" class="empty-note" hidden>Category breakdown will show up once you add bills.</p>
+    </section>
+
+    <section class="card">
+      <div class="section-head">
+        <h2>Trend</h2>
+        <p class="section-sub">How income, bills, and what's left over have moved month to month.</p>
+      </div>
+      <div id="trendList" class="trend-list"></div>
+      <p id="trendEmpty" class="empty-note" hidden>Come back next month to start seeing a trend here.</p>
+    </section>
+
+  </div>
 
 </main>
 

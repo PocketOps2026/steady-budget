@@ -7,11 +7,16 @@ const STORAGE_KEY = "steady-budget-data-v1";
 function loadData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { income: [], bills: [] };
+    if (!raw) return { income: [], bills: [], sinkingFunds: [], monthlySnapshots: [] };
     const parsed = JSON.parse(raw);
-    return { income: parsed.income || [], bills: parsed.bills || [] };
+    return {
+      income: parsed.income || [],
+      bills: parsed.bills || [],
+      sinkingFunds: parsed.sinkingFunds || [],
+      monthlySnapshots: parsed.monthlySnapshots || [],
+    };
   } catch (e) {
-    return { income: [], bills: [] };
+    return { income: [], bills: [], sinkingFunds: [], monthlySnapshots: [] };
   }
 }
 
@@ -63,6 +68,70 @@ function computeVariableMonthly(inc) {
 function monthLabel(m) {
   const [y, mo] = m.split("-").map(Number);
   return new Date(y, mo - 1, 1).toLocaleDateString(undefined, { month: "short", year: "numeric" });
+}
+
+function ordinalSuffix(n) {
+  const j = n % 10, k = n % 100;
+  if (j === 1 && k !== 11) return "st";
+  if (j === 2 && k !== 12) return "nd";
+  if (j === 3 && k !== 13) return "rd";
+  return "th";
+}
+
+function incomeScheduleLabel(inc) {
+  const freq = inc.frequency;
+  if (freq === "monthly" && inc.payDay) return `payday ${inc.payDay}${ordinalSuffix(inc.payDay)}`;
+  if (freq === "semimonthly" && inc.payDay1 && inc.payDay2) {
+    return `paydays ${inc.payDay1}${ordinalSuffix(inc.payDay1)} & ${inc.payDay2}${ordinalSuffix(inc.payDay2)}`;
+  }
+  if (freq === "weekly" && inc.payWeekday !== undefined && inc.payWeekday !== null) {
+    const names = ["Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays"];
+    return names[inc.payWeekday];
+  }
+  if (freq === "biweekly" && inc.anchorDate) return "every 2 weeks";
+  return null;
+}
+
+// Next specific pay date for a fixed income source, if it has enough info to compute one.
+// Returns null (no date info) rather than guessing, so the paycheck view can prompt for it.
+function nextPayDate(inc, today) {
+  const t = startOfDay(today);
+  const freq = inc.frequency;
+
+  if (freq === "weekly" && inc.payWeekday !== undefined && inc.payWeekday !== null) {
+    return nextWeekdayOnOrAfter(t, inc.payWeekday);
+  }
+  if (freq === "biweekly" && inc.payWeekday !== undefined && inc.payWeekday !== null && inc.anchorDate) {
+    return nextBiweeklyOnOrAfter(t, parseAnchorDate(inc.anchorDate));
+  }
+  if (freq === "monthly" && inc.payDay) {
+    let year = t.getFullYear(), month = t.getMonth();
+    let day = Math.min(inc.payDay, daysInMonth(year, month));
+    let due = new Date(year, month, day);
+    if (due < t) {
+      month += 1;
+      if (month > 11) { month = 0; year += 1; }
+      day = Math.min(inc.payDay, daysInMonth(year, month));
+      due = new Date(year, month, day);
+    }
+    return due;
+  }
+  if (freq === "semimonthly" && inc.payDay1 && inc.payDay2) {
+    const candidates = [inc.payDay1, inc.payDay2].map(d => {
+      let year = t.getFullYear(), month = t.getMonth();
+      let day = Math.min(d, daysInMonth(year, month));
+      let due = new Date(year, month, day);
+      if (due < t) {
+        month += 1;
+        if (month > 11) { month = 0; year += 1; }
+        day = Math.min(d, daysInMonth(year, month));
+        due = new Date(year, month, day);
+      }
+      return due;
+    });
+    return candidates.sort((a, b) => a - b)[0];
+  }
+  return null;
 }
 
 function totalMonthlyIncome() {
@@ -202,6 +271,75 @@ function pulseOnce(el) {
   el.classList.add("pulse");
 }
 
+// ---------- month-over-month trend ----------
+
+function monthKey(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+
+// Keeps a running snapshot of income/bills/leftover per calendar month. The
+// current month's entry stays live (updates as you edit data); past months
+// are left as a frozen historical record once you move on from them.
+function upsertMonthlySnapshot(today, income, bills, leftover) {
+  const key = monthKey(today);
+  state.monthlySnapshots = state.monthlySnapshots || [];
+  const existing = state.monthlySnapshots.find(s => s.month === key);
+  const rIncome = Math.round(income), rBills = Math.round(bills), rLeftover = Math.round(leftover);
+  let changed = false;
+  if (existing) {
+    if (existing.income !== rIncome || existing.bills !== rBills || existing.leftover !== rLeftover) {
+      existing.income = rIncome; existing.bills = rBills; existing.leftover = rLeftover;
+      changed = true;
+    }
+  } else {
+    state.monthlySnapshots.push({ month: key, income: rIncome, bills: rBills, leftover: rLeftover });
+    changed = true;
+  }
+  if (changed) {
+    state.monthlySnapshots.sort((a, b) => a.month.localeCompare(b.month));
+    if (state.monthlySnapshots.length > 24) state.monthlySnapshots = state.monthlySnapshots.slice(-24);
+    saveData();
+  }
+}
+
+function renderTrend() {
+  const wrap = document.getElementById("trendList");
+  const empty = document.getElementById("trendEmpty");
+  const snaps = (state.monthlySnapshots || []).slice(-6);
+
+  if (snaps.length < 2) {
+    wrap.hidden = true;
+    empty.hidden = false;
+    return;
+  }
+  wrap.hidden = false;
+  empty.hidden = true;
+  wrap.innerHTML = "";
+
+  const maxAbs = Math.max(1, ...snaps.map(s => Math.abs(s.leftover)));
+  const fills = [];
+  for (const s of snaps) {
+    const positive = s.leftover >= 0;
+    const pct = Math.min(50, (Math.abs(s.leftover) / maxAbs) * 50);
+    const row = document.createElement("div");
+    row.className = "trend-row";
+    row.innerHTML = `
+      <span class="trend-month">${monthLabel(s.month)}</span>
+      <span class="trend-figures">${fmtMoney(s.income)} in · ${fmtMoney(s.bills)} out</span>
+      <div class="trend-bar-track">
+        <div class="trend-bar-mid"></div>
+        <div class="trend-bar-fill ${positive ? "positive" : "negative"}"></div>
+      </div>
+      <span class="trend-leftover" style="color:${positive ? "var(--good)" : "var(--bad)"}">${fmtMoney(s.leftover)}</span>
+    `;
+    wrap.appendChild(row);
+    fills.push({ el: row.querySelector(".trend-bar-fill"), pct });
+  }
+  requestAnimationFrame(() => {
+    for (const f of fills) f.el.style.width = f.pct + "%";
+  });
+}
+
 // ---------- rendering ----------
 
 function render() {
@@ -231,6 +369,9 @@ function render() {
 
   lastStats = { income, bills, leftover };
 
+  upsertMonthlySnapshot(today, income, bills, leftover);
+
+  renderPaycheckWindow(today);
   renderDueList(today);
   renderMonthPlanner();
   renderFeedback(income, bills, leftover, today);
@@ -239,6 +380,101 @@ function render() {
   renderCategoryBars();
   renderPayoffList();
   renderPaidOffList();
+  renderSinkingList();
+  renderTrend();
+  renderDebtStrategy();
+  renderCoverage();
+  syncBillPaidFromOptions();
+}
+
+function renderPaycheckWindow(today) {
+  const sub = document.getElementById("paycheckSub");
+  const summary = document.getElementById("paycheckSummary");
+  const list = document.getElementById("paycheckList");
+  const empty = document.getElementById("paycheckEmpty");
+  list.innerHTML = "";
+
+  const datedIncomes = state.income
+    .filter(i => (i.type || "fixed") !== "variable")
+    .map(i => ({ inc: i, date: nextPayDate(i, today) }))
+    .filter(x => x.date);
+
+  if (datedIncomes.length === 0) {
+    sub.textContent = "Add a pay day to an income source below to turn this on.";
+    summary.hidden = true;
+    list.hidden = true;
+    empty.hidden = true;
+    return;
+  }
+  list.hidden = false;
+
+  const nextDate = datedIncomes.reduce((min, x) => (x.date < min ? x.date : min), datedIncomes[0].date);
+  const nextKey = dueDateKey(nextDate);
+  const arriving = datedIncomes.filter(x => dueDateKey(x.date) === nextKey);
+  const arrivingTotal = arriving.reduce((s, x) => s + Number(x.inc.amount || 0), 0);
+  const arrivingNames = arriving.map(x => x.inc.name).join(" & ");
+
+  const days = daysUntil(nextDate, today);
+  sub.textContent = `Everything due through ${nextDate.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })} — ${days === 0 ? "today" : days === 1 ? "1 day from now" : days + " days from now"}.`;
+
+  const dueRows = activeBills()
+    .map(b => {
+      const due = nextDueDate(b, today);
+      const key = dueDateKey(due);
+      return { bill: b, due, key, paid: b.paidForCycle === key, days: daysUntil(due, today) };
+    })
+    .filter(x => x.due <= nextDate)
+    .sort((a, b) => a.due - b.due);
+
+  const unpaidTotal = dueRows.filter(x => !x.paid).reduce((s, x) => s + x.bill.amount, 0);
+
+  document.getElementById("paycheckDue").textContent = fmtMoney(unpaidTotal);
+  document.getElementById("paycheckIncoming").textContent = fmtMoney(arrivingTotal) + (arrivingNames ? ` (${arrivingNames})` : "");
+  const coversEl = document.getElementById("paycheckCovers");
+  const diff = arrivingTotal - unpaidTotal;
+  coversEl.textContent = diff >= 0 ? `Yes, +${fmtMoney(diff)} left` : `Short by ${fmtMoney(Math.abs(diff))}`;
+  coversEl.style.color = diff >= 0 ? "var(--good)" : "var(--bad)";
+  summary.hidden = false;
+
+  if (dueRows.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  for (const item of dueRows) {
+    const row = document.createElement("div");
+    let status = "good";
+    if (!item.paid) {
+      if (item.days <= 0) status = "bad";
+      else if (item.days <= 3) status = "warn";
+    }
+    row.className = "due-item status-" + status + (item.paid ? " status-paid" : "");
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "due-checkbox";
+    checkbox.checked = item.paid;
+    checkbox.addEventListener("change", () => markOccurrence(item.bill, item.key, checkbox.checked));
+
+    const info = document.createElement("div");
+    info.className = "due-info";
+    info.innerHTML = `<div class="due-name">${escapeHtml(item.bill.name)}</div><div class="due-meta">${escapeHtml(item.bill.category)}</div>`;
+
+    const amount = document.createElement("div");
+    amount.className = "due-amount";
+    amount.textContent = fmtMoney(item.bill.amount);
+
+    const when = document.createElement("div");
+    when.className = "due-when";
+    when.textContent = item.paid ? "Paid" : whenLabel(item.days);
+
+    row.appendChild(checkbox);
+    row.appendChild(info);
+    row.appendChild(amount);
+    row.appendChild(when);
+    list.appendChild(row);
+  }
 }
 
 function renderDueList(today) {
@@ -496,6 +732,31 @@ function buildFeedback(income, bills, leftover, today) {
     }
   }
 
+  // When money's tight, point at specifically flexible spending rather than
+  // just the biggest category (which is often rent — not something you can cut).
+  const tight = leftover < 0 || (income > 0 && leftover < income * 0.05);
+  if (tight) {
+    const flexibleBills = activeBills().filter(b => b.priority === "flexible");
+    if (flexibleBills.length > 0) {
+      const flexTotal = flexibleBills.reduce((s, b) => s + monthlyAmount(b.amount, billFrequency(b)), 0);
+      const topFlex = flexibleBills
+        .slice()
+        .sort((a, b) => monthlyAmount(b.amount, billFrequency(b)) - monthlyAmount(a.amount, billFrequency(a)))
+        .slice(0, 3)
+        .map(b => `${b.name} (${fmtMoney(monthlyAmount(b.amount, billFrequency(b)))})`)
+        .join(", ");
+      items.push({
+        level: "warn",
+        text: `You've tagged ${fmtMoney(flexTotal)}/month as flexible spending — the biggest of those: ${topFlex}. These are the easiest places to trim first.`,
+      });
+    } else if (activeBills().length > 0) {
+      items.push({
+        level: "warn",
+        text: "None of your bills are tagged Flexible yet — mark any non-essential ones (subscriptions, dining out, etc.) as Flexible when adding them to get specific suggestions on what to cut.",
+      });
+    }
+  }
+
   // Cash coming due in the week after the immediate 3-day window —
   // gives a heads-up before things get urgent enough to turn red/yellow above.
   const weekAhead = activeBills()
@@ -514,10 +775,16 @@ function buildFeedback(income, bills, leftover, today) {
   }
 
   // Payoff timeline for debts that aren't already flagged as "almost done."
+  // Interest-aware when a rate has been entered.
   const payoffEstimates = activeBills().filter(b => b.isDebt && b.balance > b.amount);
   for (const b of payoffEstimates) {
-    const months = Math.ceil(b.balance / b.amount);
-    if (months <= 24) {
+    const months = monthsToPayoff(b.balance, b.amount, b.interestRate || 0);
+    if (months === Infinity) {
+      items.push({
+        level: "bad",
+        text: `${b.name}'s payment (${fmtMoney(b.amount)}) doesn't cover the interest being charged at ${b.interestRate}% APR — the balance will keep growing unless the payment goes up.`,
+      });
+    } else if (months <= 24) {
       items.push({
         level: "good",
         text: `At ${fmtMoney(b.amount)} per payment, ${b.name} will be paid off in about ${months} more ${months === 1 ? "payment" : "payments"} — ${fmtMoney(b.balance)} left to go.`,
@@ -553,6 +820,58 @@ function buildFeedback(income, bills, leftover, today) {
         level: "good",
         text: `${inc.name} is budgeted conservatively off its lowest month (${fmtMoney(calc.lowest)}/mo). On an average month you're actually bringing in about ${fmtMoney(calc.avg)} — the extra ${fmtMoney(calc.avg - calc.lowest)} is a good candidate for savings or extra debt payments.`,
       });
+    }
+  }
+
+  // Bill price creep — flag notable jumps between the last two logged prices.
+  for (const b of activeBills()) {
+    const jump = billPriceJump(b);
+    if (jump && jump.pctChange >= 8) {
+      items.push({
+        level: "warn",
+        text: `${b.name} jumped from ${fmtMoney(jump.prev.amount)} to ${fmtMoney(jump.cur.amount)} (+${Math.round(jump.pctChange)}%) since ${monthLabel(jump.prev.month)} — worth a call to negotiate or shop around.`,
+      });
+    }
+  }
+
+  // Month-over-month comparison, once there's history to compare against.
+  const sortedSnaps = (state.monthlySnapshots || []).slice().sort((a, b) => a.month.localeCompare(b.month));
+  const curIdx = sortedSnaps.findIndex(s => s.month === monthKey(today));
+  if (curIdx > 0) {
+    const prev = sortedSnaps[curIdx - 1];
+    const cur = sortedSnaps[curIdx];
+    const delta = cur.leftover - prev.leftover;
+    if (Math.abs(delta) >= 20) {
+      items.push({
+        level: delta > 0 ? "good" : "warn",
+        text: delta > 0
+          ? `You're ahead of ${monthLabel(prev.month)} by ${fmtMoney(delta)} in leftover cash this month.`
+          : `You're behind ${monthLabel(prev.month)} by ${fmtMoney(Math.abs(delta))} in leftover cash this month.`,
+      });
+    }
+  }
+
+  // Sinking fund pacing.
+  const activeFunds = (state.sinkingFunds || []).filter(f => f.saved < f.target);
+  if (activeFunds.length > 0) {
+    let totalSuggested = 0;
+    for (const f of activeFunds) {
+      const monthsLeft = sinkingMonthsRemaining(f, today);
+      const remaining = Math.max(0, f.target - f.saved);
+      totalSuggested += monthsLeft > 0 ? remaining / monthsLeft : remaining;
+    }
+    if (totalSuggested > 0 && leftover > 0) {
+      if (totalSuggested > leftover) {
+        items.push({
+          level: "warn",
+          text: `Staying on pace for your savings goals needs about ${fmtMoney(Math.round(totalSuggested))}/month, but you've only got ${fmtMoney(Math.round(leftover))} left over. One or more goals may need a later target date.`,
+        });
+      } else {
+        items.push({
+          level: "good",
+          text: `Setting aside about ${fmtMoney(Math.round(totalSuggested))}/month keeps all your savings goals on pace.`,
+        });
+      }
     }
   }
 
@@ -607,10 +926,11 @@ function renderIncomeList() {
     }
     const row = document.createElement("div");
     row.className = "entry-row";
+    const schedule = incomeScheduleLabel(inc);
     row.innerHTML = `
       <div class="entry-row-main">
         <span>${escapeHtml(inc.name)}</span>
-        <span class="entry-row-sub">${fmtMoney(inc.amount)} · ${freqLabel(inc.frequency)}</span>
+        <span class="entry-row-sub">${fmtMoney(inc.amount)} · ${freqLabel(inc.frequency)}${schedule ? " · " + schedule : ""}</span>
       </div>
     `;
     const btn = document.createElement("button");
@@ -638,7 +958,7 @@ function renderVariableIncomeRow(inc, idx) {
   const mainInfo = document.createElement("div");
   mainInfo.className = "entry-row-main";
   mainInfo.innerHTML = `
-    <span>${escapeHtml(inc.name)}<span class="badge-variable">Variable</span></span>
+    <span>${escapeHtml(inc.name)}<span class="badge">Variable</span></span>
     <span class="entry-row-sub">${calc.count === 0
       ? "No months logged yet — add one below."
       : `Using ${basisLabel} of last ${calc.count} ${calc.count === 1 ? "month" : "months"}: ${fmtMoney(calc.basisValue)}/mo`}</span>
@@ -703,9 +1023,10 @@ function renderVariableIncomeRow(inc, idx) {
 
   const addForm = document.createElement("form");
   addForm.className = "variable-add-form";
+  addForm.setAttribute("autocomplete", "off");
   addForm.innerHTML = `
-    <input type="month" required />
-    <input type="number" min="0" step="0.01" placeholder="Amount" required />
+    <input type="month" autocomplete="off" required />
+    <input type="number" min="0" step="0.01" placeholder="Amount" autocomplete="off" required />
     <button type="submit" class="add-btn">Log month</button>
   `;
   addForm.addEventListener("submit", (e) => {
@@ -739,6 +1060,32 @@ function billScheduleLabel(b) {
   return "due day " + b.dueDay;
 }
 
+// Which bill IDs currently have their "update price" mini-form expanded.
+// UI-only state — not persisted, reset each page load.
+const expandedPriceBillIds = new Set();
+
+function billPriceJump(bill) {
+  const hist = (bill.priceHistory || []).slice().sort((a, b) => a.month.localeCompare(b.month));
+  if (hist.length < 2) return null;
+  const prev = hist[hist.length - 2];
+  const cur = hist[hist.length - 1];
+  if (!prev.amount || prev.amount <= 0) return null;
+  const pctChange = ((cur.amount - prev.amount) / prev.amount) * 100;
+  return { prev, cur, pctChange };
+}
+
+function updateBillPrice(bill, newAmount) {
+  const key = monthKey(new Date());
+  bill.priceHistory = bill.priceHistory || [];
+  const existing = bill.priceHistory.find(h => h.month === key);
+  if (existing) existing.amount = newAmount;
+  else bill.priceHistory.push({ id: crypto.randomUUID(), month: key, amount: newAmount });
+  bill.priceHistory.sort((a, b) => a.month.localeCompare(b.month));
+  bill.amount = newAmount;
+  saveData();
+  render();
+}
+
 function renderBillsList() {
   const wrap = document.getElementById("billsList");
   wrap.innerHTML = "";
@@ -746,20 +1093,62 @@ function renderBillsList() {
     const row = document.createElement("div");
     row.className = "entry-row";
     const debtNote = b.isDebt ? ` · ${fmtMoney(b.balance)} left` : "";
+    const flexBadge = (b.priority === "flexible") ? `<span class="badge">Flexible</span>` : "";
     row.innerHTML = `
       <div class="entry-row-main">
-        <span>${escapeHtml(b.name)}</span>
+        <span>${escapeHtml(b.name)}${flexBadge}</span>
         <span class="entry-row-sub">${fmtMoney(b.amount)} · ${billScheduleLabel(b)} · ${escapeHtml(b.category)}${debtNote}</span>
       </div>
     `;
-    const btn = document.createElement("button");
-    btn.className = "remove-btn";
-    btn.textContent = "Remove";
-    btn.addEventListener("click", () => {
+    const priceBtn = document.createElement("button");
+    priceBtn.className = "remove-btn";
+    priceBtn.textContent = expandedPriceBillIds.has(b.id) ? "Hide" : "Update price";
+    priceBtn.addEventListener("click", () => {
+      if (expandedPriceBillIds.has(b.id)) expandedPriceBillIds.delete(b.id);
+      else expandedPriceBillIds.add(b.id);
+      renderBillsList();
+    });
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-btn";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
       removeBillById(b.id);
     });
-    row.appendChild(btn);
+    row.appendChild(priceBtn);
+    row.appendChild(removeBtn);
     wrap.appendChild(row);
+
+    if (expandedPriceBillIds.has(b.id)) {
+      const form = document.createElement("form");
+      form.className = "variable-add-form";
+      form.setAttribute("autocomplete", "off");
+
+      // Built with createElement + property assignment (not innerHTML string
+      // interpolation) since the bill name goes into an attribute here —
+      // property assignment is injection-safe regardless of special characters.
+      const priceInput = document.createElement("input");
+      priceInput.type = "number";
+      priceInput.min = "0";
+      priceInput.step = "0.01";
+      priceInput.placeholder = "New amount for " + b.name;
+      priceInput.autocomplete = "off";
+      priceInput.required = true;
+
+      const submitBtn = document.createElement("button");
+      submitBtn.type = "submit";
+      submitBtn.className = "add-btn";
+      submitBtn.textContent = "Log new price";
+
+      form.appendChild(priceInput);
+      form.appendChild(submitBtn);
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const newAmount = parseFloat(priceInput.value);
+        if (isNaN(newAmount) || newAmount < 0) return;
+        updateBillPrice(b, newAmount);
+      });
+      wrap.appendChild(form);
+    }
   });
 }
 
@@ -792,7 +1181,7 @@ function renderPayoffList() {
       </div>
       <div class="payoff-track"><div class="payoff-fill"></div></div>
       <div class="payoff-adjust">
-        <input type="number" min="0" step="0.01" placeholder="Correct balance to..." data-id="${b.id}" />
+        <input type="number" min="0" step="0.01" placeholder="Correct balance to..." autocomplete="off" data-id="${b.id}" />
         <button type="button" data-id="${b.id}">Update</button>
       </div>
     `;
@@ -819,6 +1208,225 @@ function renderPayoffList() {
     for (const f of fills) f.el.style.width = f.pct + "%";
   });
 }
+
+// ---------- debt strategy ----------
+
+// Months to pay off a balance at a fixed payment, accounting for interest
+// compounding monthly. Returns Infinity if the payment doesn't even cover
+// the interest charged (balance would never shrink).
+function monthsToPayoff(balance, payment, annualRatePct) {
+  const monthlyRate = (annualRatePct || 0) / 100 / 12;
+  if (monthlyRate <= 0) return payment > 0 ? Math.ceil(balance / payment) : Infinity;
+  if (payment <= balance * monthlyRate) return Infinity;
+  let months = 0;
+  let bal = balance;
+  while (bal > 0 && months < 600) {
+    bal = bal + bal * monthlyRate - payment;
+    months++;
+  }
+  return months;
+}
+
+function syncBillPaidFromOptions() {
+  const select = document.getElementById("billPaidFrom");
+  const current = select.value;
+  select.innerHTML = `<option value="">Paid from: unassigned</option>` +
+    state.income.map(inc => `<option value="${inc.id}">Paid from: ${escapeHtml(inc.name)}</option>`).join("");
+  if ([...select.options].some(o => o.value === current)) select.value = current;
+}
+
+function renderCoverage() {
+  const card = document.getElementById("coverageCard");
+  const wrap = document.getElementById("coverageList");
+  wrap.innerHTML = "";
+  if (state.income.length < 2) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const bills = activeBills();
+  for (const inc of state.income) {
+    const assigned = bills.filter(b => b.paidFrom === inc.id);
+    const total = assigned.reduce((s, b) => s + monthlyAmount(b.amount, billFrequency(b)), 0);
+    const incMonthly = inc.type === "variable" ? computeVariableMonthly(inc).basisValue : monthlyAmount(inc.amount, inc.frequency);
+    const diff = incMonthly - total;
+    const row = document.createElement("div");
+    row.className = "entry-row";
+    row.innerHTML = `
+      <div class="entry-row-main">
+        <span>${escapeHtml(inc.name)}</span>
+        <span class="entry-row-sub">${fmtMoney(total)} of ${fmtMoney(incMonthly)} allocated · ${fmtMoney(Math.abs(diff))} ${diff >= 0 ? "left over" : "short"}</span>
+      </div>
+    `;
+    wrap.appendChild(row);
+  }
+
+  const unassigned = bills.filter(b => !b.paidFrom);
+  if (unassigned.length > 0) {
+    const unassignedTotal = unassigned.reduce((s, b) => s + monthlyAmount(b.amount, billFrequency(b)), 0);
+    const row = document.createElement("div");
+    row.className = "entry-row";
+    row.innerHTML = `
+      <div class="entry-row-main">
+        <span>Not assigned</span>
+        <span class="entry-row-sub">${fmtMoney(unassignedTotal)}/mo across ${unassigned.length} bill${unassigned.length === 1 ? "" : "s"} — pick a source when adding a bill to track this.</span>
+      </div>
+    `;
+    wrap.appendChild(row);
+  }
+}
+
+function renderDebtStrategy() {
+  const card = document.getElementById("debtStrategyCard");
+  const wrap = document.getElementById("debtStrategyList");
+  const debts = activeBills().filter(b => b.isDebt);
+  if (debts.length < 2) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+  wrap.innerHTML = "";
+
+  const withStats = debts.map(d => ({
+    d,
+    months: monthsToPayoff(d.balance, d.amount, d.interestRate || 0),
+    monthlyInterest: d.balance * ((d.interestRate || 0) / 100 / 12),
+  }));
+
+  // Explicit undefined check, not truthy — a legitimately-entered 0% APR
+  // debt (e.g. a promo card) is still "a rate was entered."
+  const hasRates = debts.some(d => d.interestRate !== undefined);
+  const ranked = hasRates
+    ? withStats.slice().sort((a, b) => (b.d.interestRate ?? 0) - (a.d.interestRate ?? 0))
+    : withStats.slice().sort((a, b) => a.d.balance - b.d.balance);
+
+  const intro = document.createElement("p");
+  intro.className = "empty-note";
+  intro.style.marginBottom = "12px";
+  intro.textContent = hasRates
+    ? "Ranked by interest rate, highest first (avalanche order) — this saves the most money overall. Put any extra payment toward #1."
+    : "No interest rates added yet, so this is ranked by smallest balance first (snowball order) — add a rate when you add a debt for a money-optimal order instead.";
+  wrap.appendChild(intro);
+
+  const list = document.createElement("div");
+  list.className = "payoff-list";
+  ranked.forEach((x, i) => {
+    const rateTxt = x.d.interestRate !== undefined ? `${x.d.interestRate}% APR` : "no rate entered";
+    const monthsTxt = x.months === Infinity
+      ? "won't pay off at this rate — the payment doesn't cover the interest being charged"
+      : `about ${x.months} ${x.months === 1 ? "month" : "months"} left at the current payment`;
+    const row = document.createElement("div");
+    row.className = "payoff-item";
+    row.innerHTML = `
+      <div class="payoff-item-top">
+        <span class="payoff-name">${i + 1}. ${escapeHtml(x.d.name)}</span>
+        <span class="payoff-fig">${fmtMoney(x.d.balance)} · ${rateTxt}</span>
+      </div>
+      <p class="empty-note" style="margin:0;">${monthsTxt}${x.monthlyInterest > 0 ? ` · costing about ${fmtMoney(x.monthlyInterest)}/mo in interest right now` : ""}</p>
+    `;
+    list.appendChild(row);
+  });
+  wrap.appendChild(list);
+
+  if (hasRates) {
+    const totalInterest = withStats.reduce((s, x) => s + x.monthlyInterest, 0);
+    if (totalInterest > 0) {
+      const note = document.createElement("p");
+      note.className = "empty-note";
+      note.style.marginTop = "12px";
+      note.textContent = `Together these debts are costing about ${fmtMoney(totalInterest)}/month in interest — that's what an extra payment toward #1 saves you the fastest.`;
+      wrap.appendChild(note);
+    }
+  }
+}
+
+// ---------- sinking funds ----------
+
+function sinkingMonthsRemaining(fund, today) {
+  const [ty, tm] = fund.month.split("-").map(Number);
+  const target = new Date(ty, tm - 1, 1);
+  const cur = new Date(today.getFullYear(), today.getMonth(), 1);
+  const months = (target.getFullYear() - cur.getFullYear()) * 12 + (target.getMonth() - cur.getMonth());
+  return Math.max(0, months);
+}
+
+function renderSinkingList() {
+  const wrap = document.getElementById("sinkingList");
+  const empty = document.getElementById("sinkingEmpty");
+  wrap.innerHTML = "";
+  const funds = state.sinkingFunds || [];
+  if (funds.length === 0) {
+    empty.hidden = false;
+    return;
+  }
+  empty.hidden = true;
+
+  const today = new Date();
+  const fills = [];
+  for (const f of funds) {
+    const pct = Math.min(100, Math.max(0, (f.saved / f.target) * 100));
+    const monthsLeft = sinkingMonthsRemaining(f, today);
+    const remaining = Math.max(0, f.target - f.saved);
+    const suggested = monthsLeft > 0 ? remaining / monthsLeft : remaining;
+    const funded = f.saved >= f.target;
+
+    const item = document.createElement("div");
+    item.className = "payoff-item";
+    item.innerHTML = `
+      <div class="payoff-item-top">
+        <span class="payoff-name">${escapeHtml(f.name)}</span>
+        <span class="payoff-fig">${fmtMoney(f.saved)} of ${fmtMoney(f.target)}${funded ? " — funded! 🎉" : ""}</span>
+      </div>
+      <div class="payoff-track"><div class="payoff-fill sinking-fill"></div></div>
+      ${funded ? "" : `<p class="empty-note" style="margin:0 0 8px;">${monthLabel(f.month)} target — about ${fmtMoney(Math.ceil(suggested))}/mo to get there</p>`}
+      <div class="payoff-adjust">
+        <input type="number" min="0" step="0.01" placeholder="Add contribution" autocomplete="off" />
+        <button type="button">Add</button>
+      </div>
+    `;
+    const btn = item.querySelector(".payoff-adjust button");
+    const input = item.querySelector(".payoff-adjust input");
+    btn.addEventListener("click", () => {
+      const val = parseFloat(input.value);
+      if (isNaN(val) || val <= 0) return;
+      const wasFunded = f.saved >= f.target;
+      f.saved = (f.saved || 0) + val;
+      saveData();
+      render();
+      if (!wasFunded && f.saved >= f.target) celebrate(f.name + " fund", f.target);
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "remove-btn";
+    removeBtn.textContent = "Remove goal";
+    removeBtn.addEventListener("click", () => {
+      state.sinkingFunds = state.sinkingFunds.filter(x => x.id !== f.id);
+      saveData();
+      render();
+    });
+    item.appendChild(removeBtn);
+
+    wrap.appendChild(item);
+    fills.push({ el: item.querySelector(".sinking-fill"), pct });
+  }
+  requestAnimationFrame(() => {
+    for (const x of fills) x.el.style.width = x.pct + "%";
+  });
+}
+
+document.getElementById("sinkingForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = document.getElementById("sinkingName").value.trim();
+  const target = parseFloat(document.getElementById("sinkingTarget").value);
+  const month = document.getElementById("sinkingMonth").value;
+  if (!name || isNaN(target) || !month) return;
+  state.sinkingFunds = state.sinkingFunds || [];
+  state.sinkingFunds.push({ id: crypto.randomUUID(), name, target, month, saved: 0 });
+  saveData();
+  e.target.reset();
+  render();
+});
 
 function renderPaidOffList() {
   const card = document.getElementById("celebrateCard");
@@ -883,12 +1491,20 @@ const incAmountInput = document.getElementById("incAmount");
 const incFrequencySelect = document.getElementById("incFrequency");
 const incFirstMonthInput = document.getElementById("incFirstMonth");
 const incFirstAmountInput = document.getElementById("incFirstAmount");
+const incPayDayInput = document.getElementById("incPayDay");
+const incPayDay1Input = document.getElementById("incPayDay1");
+const incPayDay2Input = document.getElementById("incPayDay2");
+const incPayWeekdaySelect = document.getElementById("incPayWeekday");
+const incPayAnchorDateInput = document.getElementById("incPayAnchorDate");
 
-function syncIncomeTypeFields() {
+function syncIncomeFields() {
   const variable = incTypeSelect.value === "variable";
+  const freq = incFrequencySelect.value;
+
   incAmountInput.hidden = variable;
   incAmountInput.required = !variable;
   incFrequencySelect.hidden = variable;
+
   incFirstMonthInput.hidden = !variable;
   incFirstMonthInput.required = variable;
   incFirstAmountInput.hidden = !variable;
@@ -897,9 +1513,17 @@ function syncIncomeTypeFields() {
     const now = new Date();
     incFirstMonthInput.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
   }
+
+  // Pay-date fields are optional and only apply to fixed income.
+  incPayDayInput.hidden = variable || freq !== "monthly";
+  incPayDay1Input.hidden = variable || freq !== "semimonthly";
+  incPayDay2Input.hidden = variable || freq !== "semimonthly";
+  incPayWeekdaySelect.hidden = variable || (freq !== "weekly" && freq !== "biweekly");
+  incPayAnchorDateInput.hidden = variable || freq !== "biweekly";
 }
-incTypeSelect.addEventListener("change", syncIncomeTypeFields);
-syncIncomeTypeFields();
+incTypeSelect.addEventListener("change", syncIncomeFields);
+incFrequencySelect.addEventListener("change", syncIncomeFields);
+syncIncomeFields();
 
 document.getElementById("incomeForm").addEventListener("submit", (e) => {
   e.preventDefault();
@@ -921,21 +1545,40 @@ document.getElementById("incomeForm").addEventListener("submit", (e) => {
     const amount = parseFloat(incAmountInput.value);
     const frequency = incFrequencySelect.value;
     if (isNaN(amount)) return;
-    state.income.push({ id: crypto.randomUUID(), name, type: "fixed", amount, frequency });
+    const entry = { id: crypto.randomUUID(), name, type: "fixed", amount, frequency };
+
+    if (frequency === "monthly" && incPayDayInput.value) {
+      entry.payDay = parseInt(incPayDayInput.value, 10);
+    } else if (frequency === "semimonthly" && incPayDay1Input.value && incPayDay2Input.value) {
+      entry.payDay1 = parseInt(incPayDay1Input.value, 10);
+      entry.payDay2 = parseInt(incPayDay2Input.value, 10);
+    } else if (frequency === "weekly" && incPayWeekdaySelect.value !== "") {
+      entry.payWeekday = parseInt(incPayWeekdaySelect.value, 10);
+    } else if (frequency === "biweekly" && incPayWeekdaySelect.value !== "" && incPayAnchorDateInput.value) {
+      entry.payWeekday = parseInt(incPayWeekdaySelect.value, 10);
+      entry.anchorDate = incPayAnchorDateInput.value;
+    }
+
+    state.income.push(entry);
   }
 
   saveData();
   e.target.reset();
-  syncIncomeTypeFields();
+  syncIncomeFields();
   render();
 });
 
 const billIsDebtCheckbox = document.getElementById("billIsDebt");
 const billBalanceInput = document.getElementById("billBalance");
+const billInterestRateInput = document.getElementById("billInterestRate");
 billIsDebtCheckbox.addEventListener("change", () => {
   billBalanceInput.hidden = !billIsDebtCheckbox.checked;
   billBalanceInput.required = billIsDebtCheckbox.checked;
-  if (!billIsDebtCheckbox.checked) billBalanceInput.value = "";
+  billInterestRateInput.hidden = !billIsDebtCheckbox.checked;
+  if (!billIsDebtCheckbox.checked) {
+    billBalanceInput.value = "";
+    billInterestRateInput.value = "";
+  }
 });
 
 const billFrequencySelect = document.getElementById("billFrequency");
@@ -966,7 +1609,12 @@ document.getElementById("billForm").addEventListener("submit", (e) => {
   if (!name || isNaN(amount)) return;
   if (isDebt && isNaN(balanceInput)) return;
 
-  const bill = { id: crypto.randomUUID(), name, amount, category, paidForCycle: null, isDebt, paidOff: false, frequency };
+  const priority = document.getElementById("billPriority").value;
+  const paidFrom = document.getElementById("billPaidFrom").value || null;
+  const bill = {
+    id: crypto.randomUUID(), name, amount, category, paidForCycle: null, isDebt, paidOff: false, frequency, priority, paidFrom,
+    priceHistory: [{ id: crypto.randomUUID(), month: monthKey(new Date()), amount }],
+  };
 
   if (frequency === "monthly") {
     const dueDay = parseInt(billDueDayInput.value, 10);
@@ -983,17 +1631,24 @@ document.getElementById("billForm").addEventListener("submit", (e) => {
   if (isDebt) {
     bill.balance = balanceInput;
     bill.originalBalance = balanceInput;
+    const rate = parseFloat(billInterestRateInput.value);
+    if (!isNaN(rate) && rate >= 0) bill.interestRate = rate;
   }
 
   state.bills.push(bill);
   saveData();
   e.target.reset();
   billBalanceInput.hidden = true;
+  billInterestRateInput.hidden = true;
   syncBillFrequencyFields();
   render();
 });
 
 // ---------- export / import ----------
+
+document.getElementById("printBtn").addEventListener("click", () => {
+  window.print();
+});
 
 document.getElementById("exportBtn").addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -1012,7 +1667,12 @@ document.getElementById("importFile").addEventListener("change", (e) => {
   reader.onload = () => {
     try {
       const parsed = JSON.parse(reader.result);
-      state = { income: parsed.income || [], bills: parsed.bills || [] };
+      state = {
+        income: parsed.income || [],
+        bills: parsed.bills || [],
+        sinkingFunds: parsed.sinkingFunds || [],
+        monthlySnapshots: parsed.monthlySnapshots || [],
+      };
       saveData();
       render();
     } catch (err) {
@@ -1022,5 +1682,27 @@ document.getElementById("importFile").addEventListener("change", (e) => {
   reader.readAsText(file);
   e.target.value = "";
 });
+
+// ---------- tabs ----------
+
+const TAB_STORAGE_KEY = "harbor-active-tab";
+const tabButtons = document.querySelectorAll(".tab-btn");
+const tabPanels = document.querySelectorAll(".tab-panel");
+
+function setActiveTab(tab) {
+  const valid = [...tabButtons].some(b => b.dataset.tab === tab);
+  if (!valid) tab = "today";
+  tabButtons.forEach(btn => btn.classList.toggle("active", btn.dataset.tab === tab));
+  tabPanels.forEach(panel => panel.classList.toggle("active", panel.dataset.tabPanel === tab));
+  try { localStorage.setItem(TAB_STORAGE_KEY, tab); } catch (e) {}
+}
+
+tabButtons.forEach(btn => {
+  btn.addEventListener("click", () => setActiveTab(btn.dataset.tab));
+});
+
+let initialTab = "today";
+try { initialTab = localStorage.getItem(TAB_STORAGE_KEY) || "today"; } catch (e) {}
+setActiveTab(initialTab);
 
 render();
