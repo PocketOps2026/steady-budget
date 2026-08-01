@@ -535,17 +535,43 @@ function renderDueList(today) {
 
 // Shared toggle used by both the due list checkboxes and calendar chips.
 function markOccurrence(bill, key, paid) {
+  // Whether THIS exact occurrence was the one already marked paid, before we
+  // touch anything — needed so checking/unchecking is symmetric.
+  const wasThisCyclePaid = bill.isDebt && bill.paidForCycle === key;
   bill.paidForCycle = paid ? key : null;
-  if (paid && bill.isDebt && !bill.paidOff) {
-    bill.balance = Math.max(0, (bill.balance ?? bill.amount) - bill.amount);
-    if (bill.balance <= 0) {
-      bill.paidOff = true;
-      saveData();
-      render();
-      celebrate(bill.name, bill.amount);
-      return;
+
+  if (bill.isDebt) {
+    if (paid && !wasThisCyclePaid && !bill.paidOff) {
+      // Remember exactly what was deducted (not just bill.amount) so that if
+      // the bill's amount gets edited later, unchecking still restores the
+      // correct figure instead of drifting. Capped at the balance that
+      // actually existed beforehand — a final payment bigger than what's
+      // left owed shouldn't "restore" more than was really there.
+      const payment = bill.amount;
+      const balanceBefore = bill.balance ?? payment;
+      bill.lastPaymentAmount = Math.min(payment, balanceBefore);
+      bill.balance = Math.max(0, balanceBefore - payment);
+      if (bill.balance <= 0) {
+        bill.paidOff = true;
+        saveData();
+        render();
+        celebrate(bill.name, bill.amount);
+        return;
+      }
+    } else if (!paid && wasThisCyclePaid) {
+      // Reverse the deduction from checking this occurrence off — including
+      // un-paying-off a debt that had just hit zero from this exact payment —
+      // so an accidental check (or an accidental uncheck) is always fully
+      // reversible instead of leaving a permanent balance gap.
+      const payment = bill.lastPaymentAmount ?? bill.amount;
+      let restored = (bill.balance ?? 0) + payment;
+      if (bill.originalBalance !== undefined) restored = Math.min(restored, bill.originalBalance);
+      bill.balance = restored;
+      bill.paidOff = false;
+      delete bill.lastPaymentAmount;
     }
   }
+
   saveData();
   render();
 }
@@ -933,9 +959,29 @@ function renderCategoryBars() {
   });
 }
 
-// Which fixed income IDs currently have their "update amount" mini-form
-// expanded. UI-only state — not persisted, reset each page load.
-const expandedIncomeAmountIds = new Set();
+// Small helper shared by the bill/income edit forms below: builds a <select>
+// from a list of {value, label} options with one pre-selected.
+function buildSelect(options, selectedValue) {
+  const select = document.createElement("select");
+  for (const opt of options) {
+    const o = document.createElement("option");
+    o.value = opt.value;
+    o.textContent = opt.label;
+    select.appendChild(o);
+  }
+  select.value = selectedValue;
+  return select;
+}
+
+const WEEKDAY_OPTIONS = [
+  { value: "0", label: "Sunday" }, { value: "1", label: "Monday" }, { value: "2", label: "Tuesday" },
+  { value: "3", label: "Wednesday" }, { value: "4", label: "Thursday" }, { value: "5", label: "Friday" },
+  { value: "6", label: "Saturday" },
+];
+
+// Which fixed income IDs currently have their "edit" form expanded.
+// UI-only state — not persisted, reset each page load.
+const expandedIncomeEditIds = new Set();
 
 function incomeAmountJump(inc) {
   const hist = (inc.amountHistory || []).slice().sort((a, b) => a.month.localeCompare(b.month));
@@ -947,16 +993,142 @@ function incomeAmountJump(inc) {
   return { prev, cur, pctChange };
 }
 
-function updateIncomeAmount(inc, newAmount) {
+function recordIncomeAmountChange(inc, newAmount) {
   const key = monthKey(new Date());
   inc.amountHistory = inc.amountHistory || [];
   const existing = inc.amountHistory.find(h => h.month === key);
   if (existing) existing.amount = newAmount;
   else inc.amountHistory.push({ id: crypto.randomUUID(), month: key, amount: newAmount });
   inc.amountHistory.sort((a, b) => a.month.localeCompare(b.month));
-  inc.amount = newAmount;
-  saveData();
-  render();
+}
+
+// Full edit form for a fixed income source — every field is editable (name,
+// amount, frequency, and whichever pay-date fields apply to that frequency),
+// not just the amount. Changing the amount still logs to amountHistory so
+// the raise/cut feedback in buildFeedback() keeps working.
+function buildIncomeEditForm(inc) {
+  const form = document.createElement("form");
+  form.className = "entry-form edit-form";
+  form.setAttribute("autocomplete", "off");
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = inc.name;
+  nameInput.autocomplete = "off";
+  nameInput.required = true;
+  nameInput.placeholder = "Source name";
+
+  const amountInput = document.createElement("input");
+  amountInput.type = "number";
+  amountInput.min = "0";
+  amountInput.step = "0.01";
+  amountInput.value = inc.amount;
+  amountInput.autocomplete = "off";
+  amountInput.required = true;
+  amountInput.placeholder = "Amount";
+
+  const frequencySelect = buildSelect([
+    { value: "monthly", label: "Monthly" },
+    { value: "semimonthly", label: "Twice a month" },
+    { value: "biweekly", label: "Every 2 weeks" },
+    { value: "weekly", label: "Weekly" },
+    { value: "annual", label: "Annually" },
+  ], inc.frequency || "monthly");
+
+  const payDayInput = document.createElement("input");
+  payDayInput.type = "number";
+  payDayInput.min = "1";
+  payDayInput.max = "31";
+  payDayInput.placeholder = "Pay day (1-31)";
+  payDayInput.autocomplete = "off";
+  if (inc.payDay !== undefined) payDayInput.value = inc.payDay;
+
+  const payDay1Input = document.createElement("input");
+  payDay1Input.type = "number";
+  payDay1Input.min = "1";
+  payDay1Input.max = "31";
+  payDay1Input.placeholder = "1st pay day (1-31)";
+  payDay1Input.autocomplete = "off";
+  if (inc.payDay1 !== undefined) payDay1Input.value = inc.payDay1;
+
+  const payDay2Input = document.createElement("input");
+  payDay2Input.type = "number";
+  payDay2Input.min = "1";
+  payDay2Input.max = "31";
+  payDay2Input.placeholder = "2nd pay day (1-31)";
+  payDay2Input.autocomplete = "off";
+  if (inc.payDay2 !== undefined) payDay2Input.value = inc.payDay2;
+
+  const payWeekdaySelect = buildSelect(WEEKDAY_OPTIONS, inc.payWeekday !== undefined ? String(inc.payWeekday) : "5");
+
+  const payAnchorDateInput = document.createElement("input");
+  payAnchorDateInput.type = "date";
+  payAnchorDateInput.autocomplete = "off";
+  if (inc.anchorDate) payAnchorDateInput.value = inc.anchorDate;
+
+  function syncPayFields() {
+    const freq = frequencySelect.value;
+    payDayInput.hidden = freq !== "monthly";
+    payDay1Input.hidden = freq !== "semimonthly";
+    payDay2Input.hidden = freq !== "semimonthly";
+    payWeekdaySelect.hidden = freq !== "weekly" && freq !== "biweekly";
+    payAnchorDateInput.hidden = freq !== "biweekly";
+  }
+  frequencySelect.addEventListener("change", syncPayFields);
+  syncPayFields();
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "submit";
+  saveBtn.className = "add-btn";
+  saveBtn.textContent = "Save changes";
+
+  form.appendChild(nameInput);
+  form.appendChild(amountInput);
+  form.appendChild(frequencySelect);
+  form.appendChild(payDayInput);
+  form.appendChild(payDay1Input);
+  form.appendChild(payDay2Input);
+  form.appendChild(payWeekdaySelect);
+  form.appendChild(payAnchorDateInput);
+  form.appendChild(saveBtn);
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = nameInput.value.trim();
+    const amount = parseFloat(amountInput.value);
+    if (!name || isNaN(amount)) return;
+
+    const amountChanged = amount !== inc.amount;
+    inc.name = name;
+    inc.frequency = frequencySelect.value;
+
+    delete inc.payDay;
+    delete inc.payDay1;
+    delete inc.payDay2;
+    delete inc.payWeekday;
+    delete inc.anchorDate;
+
+    if (inc.frequency === "monthly" && payDayInput.value) {
+      inc.payDay = parseInt(payDayInput.value, 10);
+    } else if (inc.frequency === "semimonthly" && payDay1Input.value && payDay2Input.value) {
+      inc.payDay1 = parseInt(payDay1Input.value, 10);
+      inc.payDay2 = parseInt(payDay2Input.value, 10);
+    } else if (inc.frequency === "weekly" && payWeekdaySelect.value !== "") {
+      inc.payWeekday = parseInt(payWeekdaySelect.value, 10);
+    } else if (inc.frequency === "biweekly" && payWeekdaySelect.value !== "" && payAnchorDateInput.value) {
+      inc.payWeekday = parseInt(payWeekdaySelect.value, 10);
+      inc.anchorDate = payAnchorDateInput.value;
+    }
+
+    inc.amount = amount;
+    if (amountChanged) recordIncomeAmountChange(inc, amount);
+
+    saveData();
+    expandedIncomeEditIds.delete(inc.id);
+    render();
+  });
+
+  return form;
 }
 
 function renderIncomeList() {
@@ -976,12 +1148,12 @@ function renderIncomeList() {
         <span class="entry-row-sub">${fmtMoney(inc.amount)} · ${freqLabel(inc.frequency)}${schedule ? " · " + schedule : ""}</span>
       </div>
     `;
-    const updateBtn = document.createElement("button");
-    updateBtn.className = "remove-btn";
-    updateBtn.textContent = expandedIncomeAmountIds.has(inc.id) ? "Hide" : "Update amount";
-    updateBtn.addEventListener("click", () => {
-      if (expandedIncomeAmountIds.has(inc.id)) expandedIncomeAmountIds.delete(inc.id);
-      else expandedIncomeAmountIds.add(inc.id);
+    const editBtn = document.createElement("button");
+    editBtn.className = "remove-btn";
+    editBtn.textContent = expandedIncomeEditIds.has(inc.id) ? "Hide" : "Edit";
+    editBtn.addEventListener("click", () => {
+      if (expandedIncomeEditIds.has(inc.id)) expandedIncomeEditIds.delete(inc.id);
+      else expandedIncomeEditIds.add(inc.id);
       renderIncomeList();
     });
     const removeBtn = document.createElement("button");
@@ -992,37 +1164,12 @@ function renderIncomeList() {
       saveData();
       render();
     });
-    row.appendChild(updateBtn);
+    row.appendChild(editBtn);
     row.appendChild(removeBtn);
     wrap.appendChild(row);
 
-    if (expandedIncomeAmountIds.has(inc.id)) {
-      const form = document.createElement("form");
-      form.className = "variable-add-form";
-      form.setAttribute("autocomplete", "off");
-
-      const amtInput = document.createElement("input");
-      amtInput.type = "number";
-      amtInput.min = "0";
-      amtInput.step = "0.01";
-      amtInput.placeholder = "New amount for " + inc.name;
-      amtInput.autocomplete = "off";
-      amtInput.required = true;
-
-      const submitBtn = document.createElement("button");
-      submitBtn.type = "submit";
-      submitBtn.className = "add-btn";
-      submitBtn.textContent = "Log new amount";
-
-      form.appendChild(amtInput);
-      form.appendChild(submitBtn);
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const newAmount = parseFloat(amtInput.value);
-        if (isNaN(newAmount) || newAmount < 0) return;
-        updateIncomeAmount(inc, newAmount);
-      });
-      wrap.appendChild(form);
+    if (expandedIncomeEditIds.has(inc.id)) {
+      wrap.appendChild(buildIncomeEditForm(inc));
     }
   });
 }
@@ -1141,9 +1288,12 @@ function billScheduleLabel(b) {
   return "due day " + b.dueDay;
 }
 
-// Which bill IDs currently have their "update price" mini-form expanded.
+// Which bill IDs currently have their "edit" form expanded.
 // UI-only state — not persisted, reset each page load.
-const expandedPriceBillIds = new Set();
+const expandedBillEditIds = new Set();
+
+const BILL_CATEGORY_OPTIONS = ["Housing", "Utilities", "Food", "Transportation", "Insurance", "Debt", "Subscriptions", "Other"]
+  .map(c => ({ value: c, label: c }));
 
 function billPriceJump(bill) {
   const hist = (bill.priceHistory || []).slice().sort((a, b) => a.month.localeCompare(b.month));
@@ -1155,16 +1305,190 @@ function billPriceJump(bill) {
   return { prev, cur, pctChange };
 }
 
-function updateBillPrice(bill, newAmount) {
+function recordBillAmountChange(bill, newAmount) {
   const key = monthKey(new Date());
   bill.priceHistory = bill.priceHistory || [];
   const existing = bill.priceHistory.find(h => h.month === key);
   if (existing) existing.amount = newAmount;
   else bill.priceHistory.push({ id: crypto.randomUUID(), month: key, amount: newAmount });
   bill.priceHistory.sort((a, b) => a.month.localeCompare(b.month));
-  bill.amount = newAmount;
-  saveData();
-  render();
+}
+
+// Full edit form for a bill — every field is editable (name, amount,
+// frequency/schedule, category, priority, paid-from, and debt/balance/
+// interest rate), not just the price. Changing the amount still logs to
+// priceHistory so the price-creep feedback in buildFeedback() keeps working.
+// Built with createElement + property assignment throughout (not innerHTML
+// string interpolation) since user-entered text (the bill name) can end up
+// inside this form — property assignment is injection-safe regardless of
+// special characters, unlike interpolating into an HTML attribute string.
+function buildBillEditForm(bill) {
+  const form = document.createElement("form");
+  form.className = "entry-form edit-form";
+  form.setAttribute("autocomplete", "off");
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = bill.name;
+  nameInput.autocomplete = "off";
+  nameInput.required = true;
+  nameInput.placeholder = "Bill name";
+
+  const amountInput = document.createElement("input");
+  amountInput.type = "number";
+  amountInput.min = "0";
+  amountInput.step = "0.01";
+  amountInput.value = bill.amount;
+  amountInput.autocomplete = "off";
+  amountInput.required = true;
+  amountInput.placeholder = "Amount";
+
+  const frequencySelect = buildSelect([
+    { value: "monthly", label: "Monthly" },
+    { value: "weekly", label: "Weekly" },
+    { value: "biweekly", label: "Every 2 weeks" },
+  ], billFrequency(bill));
+
+  const dueDayInput = document.createElement("input");
+  dueDayInput.type = "number";
+  dueDayInput.min = "1";
+  dueDayInput.max = "31";
+  dueDayInput.placeholder = "Due day (1-31)";
+  dueDayInput.autocomplete = "off";
+  if (bill.dueDay !== undefined) dueDayInput.value = bill.dueDay;
+
+  const weekdaySelect = buildSelect(WEEKDAY_OPTIONS, bill.dueWeekday !== undefined ? String(bill.dueWeekday) : "5");
+
+  const anchorDateInput = document.createElement("input");
+  anchorDateInput.type = "date";
+  anchorDateInput.autocomplete = "off";
+  if (bill.anchorDate) anchorDateInput.value = bill.anchorDate;
+
+  function syncScheduleFields() {
+    const freq = frequencySelect.value;
+    dueDayInput.hidden = freq !== "monthly";
+    weekdaySelect.hidden = freq === "monthly";
+    anchorDateInput.hidden = freq !== "biweekly";
+  }
+  frequencySelect.addEventListener("change", syncScheduleFields);
+  syncScheduleFields();
+
+  const categorySelect = buildSelect(BILL_CATEGORY_OPTIONS, bill.category);
+
+  const prioritySelect = buildSelect([
+    { value: "essential", label: "Essential" },
+    { value: "flexible", label: "Flexible" },
+  ], bill.priority || "essential");
+
+  const paidFromOptions = [{ value: "", label: "Paid from: unassigned" }]
+    .concat(state.income.map(inc => ({ value: inc.id, label: "Paid from: " + inc.name })));
+  const paidFromSelect = buildSelect(paidFromOptions, bill.paidFrom || "");
+
+  const isDebtLabel = document.createElement("label");
+  isDebtLabel.className = "checkbox-label";
+  const isDebtCheckbox = document.createElement("input");
+  isDebtCheckbox.type = "checkbox";
+  isDebtCheckbox.checked = !!bill.isDebt;
+  isDebtLabel.appendChild(isDebtCheckbox);
+  isDebtLabel.appendChild(document.createTextNode("Paying this off (loan / credit card)"));
+
+  const balanceInput = document.createElement("input");
+  balanceInput.type = "number";
+  balanceInput.min = "0";
+  balanceInput.step = "0.01";
+  balanceInput.placeholder = "Remaining balance";
+  balanceInput.autocomplete = "off";
+  if (bill.balance !== undefined) balanceInput.value = bill.balance;
+
+  const rateInput = document.createElement("input");
+  rateInput.type = "number";
+  rateInput.min = "0";
+  rateInput.step = "0.01";
+  rateInput.placeholder = "Interest rate % (optional)";
+  rateInput.autocomplete = "off";
+  if (bill.interestRate !== undefined) rateInput.value = bill.interestRate;
+
+  function syncDebtFields() {
+    balanceInput.hidden = !isDebtCheckbox.checked;
+    rateInput.hidden = !isDebtCheckbox.checked;
+  }
+  isDebtCheckbox.addEventListener("change", syncDebtFields);
+  syncDebtFields();
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "submit";
+  saveBtn.className = "add-btn";
+  saveBtn.textContent = "Save changes";
+
+  form.appendChild(nameInput);
+  form.appendChild(amountInput);
+  form.appendChild(frequencySelect);
+  form.appendChild(dueDayInput);
+  form.appendChild(weekdaySelect);
+  form.appendChild(anchorDateInput);
+  form.appendChild(categorySelect);
+  form.appendChild(prioritySelect);
+  form.appendChild(paidFromSelect);
+  form.appendChild(isDebtLabel);
+  form.appendChild(balanceInput);
+  form.appendChild(rateInput);
+  form.appendChild(saveBtn);
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = nameInput.value.trim();
+    const amount = parseFloat(amountInput.value);
+    if (!name || isNaN(amount)) return;
+    if (isDebtCheckbox.checked && isNaN(parseFloat(balanceInput.value))) return;
+
+    const amountChanged = amount !== bill.amount;
+    bill.name = name;
+    bill.category = categorySelect.value;
+    bill.priority = prioritySelect.value;
+    bill.paidFrom = paidFromSelect.value || null;
+    bill.frequency = frequencySelect.value;
+
+    delete bill.dueDay;
+    delete bill.dueWeekday;
+    delete bill.anchorDate;
+    if (bill.frequency === "monthly") {
+      const dueDay = parseInt(dueDayInput.value, 10);
+      if (isNaN(dueDay)) return;
+      bill.dueDay = dueDay;
+    } else if (bill.frequency === "weekly") {
+      bill.dueWeekday = parseInt(weekdaySelect.value, 10);
+    } else if (bill.frequency === "biweekly") {
+      bill.dueWeekday = parseInt(weekdaySelect.value, 10);
+      if (!anchorDateInput.value) return;
+      bill.anchorDate = anchorDateInput.value;
+    }
+
+    bill.isDebt = isDebtCheckbox.checked;
+    if (bill.isDebt) {
+      const balance = parseFloat(balanceInput.value);
+      bill.balance = balance;
+      // Keep the original starting balance (used for the payoff progress
+      // bar) untouched if it's already set — editing shouldn't reset progress.
+      if (bill.originalBalance === undefined) bill.originalBalance = balance;
+      const rate = parseFloat(rateInput.value);
+      if (!isNaN(rate) && rate >= 0) bill.interestRate = rate;
+      else delete bill.interestRate;
+    } else {
+      delete bill.balance;
+      delete bill.originalBalance;
+      delete bill.interestRate;
+      bill.paidOff = false;
+    }
+
+    bill.amount = amount;
+    if (amountChanged) recordBillAmountChange(bill, amount);
+
+    saveData();
+    expandedBillEditIds.delete(bill.id);
+    render();
+  });
+
+  return form;
 }
 
 function renderBillsList() {
@@ -1181,12 +1505,12 @@ function renderBillsList() {
         <span class="entry-row-sub">${fmtMoney(b.amount)} · ${billScheduleLabel(b)} · ${escapeHtml(b.category)}${debtNote}</span>
       </div>
     `;
-    const priceBtn = document.createElement("button");
-    priceBtn.className = "remove-btn";
-    priceBtn.textContent = expandedPriceBillIds.has(b.id) ? "Hide" : "Update price";
-    priceBtn.addEventListener("click", () => {
-      if (expandedPriceBillIds.has(b.id)) expandedPriceBillIds.delete(b.id);
-      else expandedPriceBillIds.add(b.id);
+    const editBtn = document.createElement("button");
+    editBtn.className = "remove-btn";
+    editBtn.textContent = expandedBillEditIds.has(b.id) ? "Hide" : "Edit";
+    editBtn.addEventListener("click", () => {
+      if (expandedBillEditIds.has(b.id)) expandedBillEditIds.delete(b.id);
+      else expandedBillEditIds.add(b.id);
       renderBillsList();
     });
     const removeBtn = document.createElement("button");
@@ -1195,40 +1519,12 @@ function renderBillsList() {
     removeBtn.addEventListener("click", () => {
       removeBillById(b.id);
     });
-    row.appendChild(priceBtn);
+    row.appendChild(editBtn);
     row.appendChild(removeBtn);
     wrap.appendChild(row);
 
-    if (expandedPriceBillIds.has(b.id)) {
-      const form = document.createElement("form");
-      form.className = "variable-add-form";
-      form.setAttribute("autocomplete", "off");
-
-      // Built with createElement + property assignment (not innerHTML string
-      // interpolation) since the bill name goes into an attribute here —
-      // property assignment is injection-safe regardless of special characters.
-      const priceInput = document.createElement("input");
-      priceInput.type = "number";
-      priceInput.min = "0";
-      priceInput.step = "0.01";
-      priceInput.placeholder = "New amount for " + b.name;
-      priceInput.autocomplete = "off";
-      priceInput.required = true;
-
-      const submitBtn = document.createElement("button");
-      submitBtn.type = "submit";
-      submitBtn.className = "add-btn";
-      submitBtn.textContent = "Log new price";
-
-      form.appendChild(priceInput);
-      form.appendChild(submitBtn);
-      form.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const newAmount = parseFloat(priceInput.value);
-        if (isNaN(newAmount) || newAmount < 0) return;
-        updateBillPrice(b, newAmount);
-      });
-      wrap.appendChild(form);
+    if (expandedBillEditIds.has(b.id)) {
+      wrap.appendChild(buildBillEditForm(b));
     }
   });
 }
@@ -1655,15 +1951,25 @@ document.getElementById("incomeForm").addEventListener("submit", (e) => {
 const billIsDebtCheckbox = document.getElementById("billIsDebt");
 const billBalanceInput = document.getElementById("billBalance");
 const billInterestRateInput = document.getElementById("billInterestRate");
-billIsDebtCheckbox.addEventListener("change", () => {
-  billBalanceInput.hidden = !billIsDebtCheckbox.checked;
-  billBalanceInput.required = billIsDebtCheckbox.checked;
-  billInterestRateInput.hidden = !billIsDebtCheckbox.checked;
-  if (!billIsDebtCheckbox.checked) {
+
+// Bug fix: form.reset() (called after a successful add) restores the
+// checkbox to unchecked but does NOT fire its "change" event, so this sync
+// has to be re-run explicitly after reset too — otherwise billBalanceInput
+// is left hidden AND required at the same time, which silently blocks every
+// future submission of this form (not just debt bills) until the page is
+// reloaded, since the browser refuses to submit a required-but-unfillable
+// field. See the call right after `e.target.reset()` below.
+function syncBillDebtFields() {
+  const checked = billIsDebtCheckbox.checked;
+  billBalanceInput.hidden = !checked;
+  billBalanceInput.required = checked;
+  billInterestRateInput.hidden = !checked;
+  if (!checked) {
     billBalanceInput.value = "";
     billInterestRateInput.value = "";
   }
-});
+}
+billIsDebtCheckbox.addEventListener("change", syncBillDebtFields);
 
 const billFrequencySelect = document.getElementById("billFrequency");
 const billDueDayInput = document.getElementById("billDueDay");
@@ -1722,8 +2028,7 @@ document.getElementById("billForm").addEventListener("submit", (e) => {
   state.bills.push(bill);
   saveData();
   e.target.reset();
-  billBalanceInput.hidden = true;
-  billInterestRateInput.hidden = true;
+  syncBillDebtFields();
   syncBillFrequencyFields();
   render();
 });
@@ -1877,6 +2182,41 @@ if (themeSelect) {
     document.documentElement.setAttribute("data-theme", themeSelect.value);
     try { localStorage.setItem(THEME_STORAGE_KEY, themeSelect.value); } catch (e) {}
   });
+}
+
+// ---------- top bar menu ----------
+// Theme, Print, Export Spreadsheet, Backup, and Import all live behind one
+// "Menu" button instead of a row of separate buttons.
+const menuBtn = document.getElementById("menuBtn");
+const menuPanel = document.getElementById("menuPanel");
+if (menuBtn && menuPanel) {
+  function closeMenu() {
+    menuPanel.hidden = true;
+    menuBtn.setAttribute("aria-expanded", "false");
+  }
+  function openMenu() {
+    menuPanel.hidden = false;
+    menuBtn.setAttribute("aria-expanded", "true");
+  }
+  menuBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (menuPanel.hidden) openMenu(); else closeMenu();
+  });
+  // Close on any click outside the menu (but not on clicks inside it, so
+  // picking a theme or opening the file picker doesn't immediately close it).
+  document.addEventListener("click", (e) => {
+    if (!menuPanel.hidden && !menuPanel.contains(e.target) && e.target !== menuBtn) closeMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menuPanel.hidden) closeMenu();
+  });
+  // Print/Export/Backup are one-shot actions — close the menu right after,
+  // same as a native app menu would.
+  ["printBtn", "exportXlsxBtn", "exportBtn"].forEach((id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", closeMenu);
+  });
+  document.getElementById("importFile").addEventListener("change", closeMenu);
 }
 
 render();

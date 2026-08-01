@@ -45,15 +45,20 @@ tab is open.
 
 ## More power features (still no AI — all rule-based)
 
-- **Bill price tracking.** Click "Update price" next to any bill to log a
-  new amount when it changes. If a bill jumps 8%+ since the last time you
-  logged it, feedback flags it — catches quiet cost creep (utilities,
-  insurance, subscriptions) before it compounds.
-- **Fixed income tracking.** Click "Update amount" next to any fixed income
-  source when your pay changes — a raise, a cut, a new job. Feedback flags
-  any change of 3%+ since the last logged amount, in either direction, so a
-  pay cut doesn't quietly go unnoticed against a budget still built on the
-  old number.
+- **Edit anything.** Click "Edit" next to any bill or income source to change
+  every field — name, amount, category, priority, due date, paid-from, debt/
+  balance/interest rate for bills — not just the amount. Good for fixing a
+  wrong category or adding an interest rate you forgot the first time.
+  Changing the amount still logs it to that bill's or income source's price
+  history, so the cost-creep and pay-change feedback below keeps working.
+- **Bill price tracking.** When you edit a bill's amount, it's logged. If a
+  bill jumps 8%+ since the last time you logged it, feedback flags it —
+  catches quiet cost creep (utilities, insurance, subscriptions) before it
+  compounds.
+- **Fixed income tracking.** When you edit a fixed income source's amount,
+  it's logged — a raise, a cut, a new job. Feedback flags any change of 3%+
+  since the last logged amount, in either direction, so a pay cut doesn't
+  quietly go unnoticed against a budget still built on the old number.
 - **Print view.** The Print button in the top bar gives a clean, paper-
   friendly summary — all the interactive controls are hidden automatically
   for printing.
@@ -77,6 +82,8 @@ tab is open.
   device.
 - **App icon.** Harbor now has a proper icon for browser tabs and "Add to
   Home Screen" on phones (the anchor mark, at the sizes iOS/Android expect).
+- **Menu.** Theme, Print, Export Spreadsheet, Backup, and Import all live
+  behind a single "Menu" button in the top bar instead of a row of buttons.
 
 ## Variable / commission income
 
