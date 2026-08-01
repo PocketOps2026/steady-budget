@@ -92,6 +92,11 @@ html[data-theme="dusk"] {
 
 * { box-sizing: border-box; }
 
+/* Safety net: nothing should ever force horizontal scroll/zoom on mobile,
+   even if a future addition to the top bar or a long bill name doesn't wrap
+   the way it's supposed to. */
+html { overflow-x: hidden; width: 100%; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
@@ -191,6 +196,8 @@ main {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 12px;
 }
 
 .brand { display: flex; align-items: center; gap: 10px; font-weight: 650; font-size: 1.2rem; letter-spacing: -0.01em; }
@@ -206,7 +213,16 @@ main {
   box-shadow: 0 3px 8px var(--accent-shadow);
 }
 
-.topbar-actions { display: flex; gap: 8px; }
+.topbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+
+.btn-label-short { display: none; }
+
+@media (max-width: 720px) {
+  .topbar-actions { gap: 6px; width: 100%; justify-content: flex-start; }
+  .ghost-btn, .theme-select { padding: 7px 10px; font-size: 0.8rem; }
+  .btn-label-full { display: none; }
+  .btn-label-short { display: inline; }
+}
 
 .ghost-btn {
   background: none;
@@ -347,14 +363,21 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
   letter-spacing: 0.05em;
 }
 
+#calendarWrap {
+  /* Backstop: if the grid ever can't fit (very old phones, a very long bill
+     name breaking ellipsis), scroll horizontally instead of forcing the
+     whole page wider. */
+  overflow-x: auto;
+}
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 6px;
   animation: enter 0.3s ease both;
 }
 .cal-cell {
   min-height: 78px;
+  min-width: 0;
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 6px;
@@ -387,9 +410,12 @@ main .card:nth-of-type(7) { animation-delay: 0.38s; }
 .cal-more { font-size: 0.64rem; color: var(--muted); padding: 0 2px; }
 
 @media (max-width: 720px) {
-  .cal-cell { min-height: 56px; padding: 4px; }
-  .cal-chip { font-size: 0.6rem; }
-  .calendar-weekdays span { font-size: 0.62rem; }
+  main { padding: 0 12px 60px; }
+  .card { padding: 16px; }
+  .calendar-grid, .calendar-weekdays { gap: 4px; }
+  .cal-cell { min-height: 56px; padding: 3px; }
+  .cal-chip { font-size: 0.6rem; padding: 2px 3px; }
+  .calendar-weekdays span { font-size: 0.58rem; }
 }
 
 .due-list { display: flex; flex-direction: column; gap: 10px; }
